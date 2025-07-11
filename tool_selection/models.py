@@ -1,68 +1,33 @@
-"""Shared data models for tool selection and registry.
+"""
+Shared data models for tool selection and registry.
 
-This module contains all the shared Pydantic models and enums used by both
-the tool selector and tool registry modules, avoiding circular imports.
+This module contains the shared Pydantic models used by the tool selector,
+defining the structure for tool invocations and the overall decision output.
+These models are crucial for consistent data exchange within the tool selection
+process.
 """
 
-from enum import Enum
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
 
-class ToolArgument(BaseModel):
-    """Tool argument definition.
-    
-    DSPy will use the Field descriptions to help the LLM understand
-    what each field represents when generating structured output.
-    """
-    name: str = Field(description="Argument name")
-    type: str = Field(description="Argument type (str, int, etc.)")
-    description: str = Field(description="What this argument is for")
-
-
-class MultiToolName(str, Enum):
-    """Extended set of tool names for multi-tool scenarios."""
-    # Events
-    FIND_EVENTS = "find_events"
-    CREATE_EVENT = "create_event"
-    UPDATE_EVENT = "update_event"
-    CANCEL_EVENT = "cancel_event"
-    
-    # E-commerce
-    SEARCH_PRODUCTS = "search_products"
-    ADD_TO_CART = "add_to_cart"
-    CHECKOUT = "checkout"
-    TRACK_ORDER = "track_order"
-    RETURN_ITEM = "return_item"
-    
-    # Finance
-    CHECK_BALANCE = "check_balance"
-    TRANSFER_MONEY = "transfer_money"
-    PAY_BILL = "pay_bill"
-    INVEST = "invest"
-    GET_STATEMENT = "get_statement"
-    
-    # Existing tools
-    GIVE_HINT = "give_hint"
-    GUESS_LOCATION = "guess_location"
-    SET_REMINDER = "set_reminder"
-
-
-class MultiTool(BaseModel):
-    """Extended tool definition."""
-    name: MultiToolName
-    description: str
-    arguments: List[ToolArgument]
-    category: str
-
-
 class ToolCall(BaseModel):
-    """Single tool call with arguments."""
-    tool_name: str  # Will be constrained by Literal in signature
-    arguments: Dict[str, Any] = Field(default_factory=dict)
+    """
+    Represents a single invocation of a tool with its specified arguments.
+
+    This model is used to structure the output of the tool selection process,
+    indicating which tool should be called and with what parameters.
+    """
+    tool_name: str = Field(..., description="The unique name of the tool to be called (e.g., 'set_reminder')")
+    arguments: Dict[str, Any] = Field(default_factory=dict, description="A dictionary of arguments to pass to the tool, where keys are argument names and values are their corresponding values.")
 
 
 class MultiToolDecision(BaseModel):
-    """Decision containing multiple tool calls."""
-    tool_calls: List[ToolCall]
-    reasoning: str
+    """
+    Represents the comprehensive decision made by the tool selector.
+
+    This model encapsulates the reasoning behind the tool selection and a list
+    of one or more tool calls that should be executed to fulfill the user's request.
+    """
+    reasoning: str = Field(..., description="A detailed explanation or step-by-step thought process behind why the specific tools were selected and how they address the user's request.")
+    tool_calls: List[ToolCall] = Field(..., description="A list of ToolCall objects, each representing a tool to be invoked. The order of tools in this list may or may not be significant depending on the 'execution_order_matters' flag in the signature.")

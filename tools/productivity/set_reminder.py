@@ -1,13 +1,11 @@
-"""Set reminder tool implementation using the new base classes."""
-from typing import List, ClassVar
+"""Set reminder tool implementation using the unified base class."""
+from typing import List, ClassVar, Dict, Any, Type
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class SetReminderTool(BaseTool):
     """Tool for setting reminders."""
     
@@ -15,7 +13,7 @@ class SetReminderTool(BaseTool):
     MODULE: ClassVar[str] = "tools.productivity.set_reminder"
     
     class Arguments(BaseModel):
-        """Argument validation model for set_reminder tool."""
+        """Argument validation model."""
         message: str = Field(
             ..., 
             min_length=1, 
@@ -35,14 +33,11 @@ class SetReminderTool(BaseTool):
                 raise ValueError("Time cannot be empty")
             return v.strip()
     
-    metadata = ToolMetadata(
-        name=NAME,
-        description="Set a reminder for a specific time",
-        category="productivity",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Set a reminder for a specific time"
+    args_model: Type[BaseModel] = Arguments
     
-    def execute(self, message: str, time: str) -> dict:
+    def execute(self, message: str, time: str) -> Dict[str, Any]:
         """Execute the tool to set a reminder."""
         # In a real implementation, this would schedule the reminder
         # For now, we'll just return a confirmation

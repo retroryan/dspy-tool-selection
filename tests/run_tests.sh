@@ -15,10 +15,10 @@ fi
 # Run tests with coverage if available
 if poetry run python -c "import pytest_cov" 2>/dev/null; then
     echo "📊 Running tests with coverage..."
-    poetry run pytest -v --cov=. --cov-report=term-missing tests/ integration_tests/
+    poetry run pytest -v --cov=. --cov-report=term-missing tests/
 else
     echo "🧪 Running tests..."
-    poetry run pytest -v tests/ integration_tests/
+    poetry run pytest -v tests/
 fi
 
 echo

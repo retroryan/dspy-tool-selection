@@ -4,13 +4,9 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+# Import ToolTestCase to use instead of local TestCase
+from tool_selection.base_tool import ToolTestCase
 
-class TestCase(BaseModel):
-    """Definition of a test case for tool selection."""
-    request: str = Field(description="The user request to test")
-    expected_tools: List[str] = Field(description="Expected tools to be selected")
-    description: str = Field(description="Description of what this test validates")
-    category: str = Field(default="general", description="Category of the test")
 
 
 class ToolSelectionEvaluation(BaseModel):
@@ -23,7 +19,7 @@ class ToolSelectionEvaluation(BaseModel):
 
 class TestResult(BaseModel):
     """Result of a single test case execution."""
-    test_case: TestCase = Field(description="The test case that was executed")
+    test_case: ToolTestCase = Field(description="The test case that was executed")
     actual_tools: List[str] = Field(description="Tools actually selected")
     reasoning: str = Field(description="LLM's reasoning for the selection")
     evaluation: ToolSelectionEvaluation = Field(description="Evaluation metrics")

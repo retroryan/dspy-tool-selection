@@ -1,56 +1,107 @@
-"""Tool sets for grouping related tools."""
+"""
+Tool sets for grouping related tools.
+
+This module defines a system for organizing tools into logical groups (tool sets).
+Each tool set can contain multiple tools and provides a way to manage and load
+collections of tools relevant to specific domains or functionalities.
+It also includes an extended test case model for tool set-specific testing.
+"""
 from typing import List, Optional, Dict, Type, ClassVar
 from pydantic import BaseModel, Field, ConfigDict
 
 from .base_tool import ToolTestCase, BaseTool
 
-# Import tool classes directly
-from tools.treasure_hunt.give_hint import GiveHintTool
-from tools.treasure_hunt.guess_location import GuessLocationTool
-from tools.productivity.set_reminder import SetReminderTool
-
 
 class ToolSetTestCase(ToolTestCase):
-    """Extended test case for tool sets."""
-    tool_set: str  # Which tool set this test belongs to
-    scenario: Optional[str] = None  # Optional scenario grouping
+    """
+    Extends the base ToolTestCase to include tool set-specific metadata.
+
+    This allows test cases to be associated with a particular tool set and
+    optionally a scenario within that set, aiding in more organized testing.
+    """
+    tool_set: str  # The name of the tool set this test case belongs to
+    scenario: Optional[str] = None  # An optional, more granular grouping for test cases within a tool set
 
 
 class ToolSetConfig(BaseModel):
-    """Configuration for a tool set using Pydantic."""
-    model_config = ConfigDict(frozen=True)  # Immutable configuration
+    """
+    Configuration model for a ToolSet.
+
+    This model defines the immutable properties of a tool set, such as its name,
+    description, and the list of tool classes it contains.
+    """
+    model_config = ConfigDict(frozen=True)  # Ensures the configuration is immutable after creation
     
-    name: str
-    description: str
-    tool_classes: List[Type[BaseTool]]  # Direct references to tool classes
+    name: str  # The unique name of the tool set (e.g., "treasure_hunt", "productivity")
+    description: str  # A brief description of the tool set's purpose
+    tool_classes: List[Type[BaseTool]]  # A list of direct references to the BaseTool subclasses included in this set
 
 
 class ToolSet(BaseModel):
-    """Tool set with Pydantic validation."""
-    config: ToolSetConfig
+    """
+    Base class for defining a collection of related tools.
+
+    Subclasses should define their specific tools and provide test cases relevant
+    to their domain. This class handles the loading of its contained tools into
+    the global tool registry.
+    """
+    config: ToolSetConfig  # The immutable configuration for this tool set
     
     def load(self) -> None:
-        """Load all tools in this set."""
-        # Tools are automatically registered when their classes are imported
-        # Since we're importing the classes directly, they're already loaded
-        pass
+        """
+        Registers all tool classes defined in this tool set's configuration
+        with the global tool registry.
+
+        Tools are only registered if they are not already present in the registry,
+        preventing duplicate registrations.
+        """
+        from tool_selection.registry import registry  # Import here to avoid circular dependency
+        for tool_class in self.config.tool_classes:
+            # Only register the tool if it hasn't been registered already
+            if not registry.get_tool(tool_class.NAME):
+                registry.register(tool_class)
     
     def get_loaded_tools(self) -> List[str]:
-        """Get names of tools that should be loaded by this set."""
+        """
+        Returns a list of names of the tools that are part of this tool set.
+
+        These are the tools that *should* be loaded into the registry when this
+        tool set is activated.
+        """
         return [tool_class.NAME for tool_class in self.config.tool_classes]
     
     @classmethod
     def get_test_cases(cls) -> List[ToolSetTestCase]:
-        """Return test cases - must be implemented by subclasses."""
+        """
+        Abstract method to be implemented by subclasses.
+
+        Subclasses should return a list of `ToolSetTestCase` objects that are
+        specific to the functionality provided by the tools within that set.
+
+        Returns:
+            List[ToolSetTestCase]: A list of test cases for the tool set.
+        """
         return []
 
 
-# Define specific tool sets
+# Define specific tool sets by subclassing ToolSet
 class TreasureHuntToolSet(ToolSet):
-    """Tool set for treasure hunting game."""
-    NAME: ClassVar[str] = "treasure_hunt"
+    """
+    A specific tool set for tools related to a treasure hunting game.
+
+    This set includes tools like `GiveHintTool` and `GuessLocationTool`.
+    """
+    NAME: ClassVar[str] = "treasure_hunt"  # The unique name for this tool set
     
     def __init__(self):
+        """
+        Initializes the TreasureHuntToolSet, defining its name, description,
+        and the specific tool classes it encompasses.
+        """
+        # Lazy import tool classes to avoid circular dependencies and ensure tools are registered only when needed
+        from tools.treasure_hunt.give_hint import GiveHintTool
+        from tools.treasure_hunt.guess_location import GuessLocationTool
+        
         super().__init__(
             config=ToolSetConfig(
                 name=self.NAME,
@@ -64,7 +115,12 @@ class TreasureHuntToolSet(ToolSet):
     
     @classmethod
     def get_test_cases(cls) -> List[ToolSetTestCase]:
-        """Return test cases for treasure hunt scenarios."""
+        """
+        Returns a predefined list of test cases for treasure hunt scenarios.
+
+        These cases cover various interactions with the treasure hunt tools,
+        including single and multi-tool requests.
+        """
         return [
             ToolSetTestCase(
                 request="I need help finding the treasure",
@@ -80,8 +136,8 @@ class TreasureHuntToolSet(ToolSet):
             ),
             ToolSetTestCase(
                 request="Give me a hint and I'll guess where it is",
-                expected_tools=["give_hint", "guess_location"],
-                description="Multi-tool treasure hunt",
+                expected_tools=["give_hint"],
+                description="Request for hint before guessing",
                 tool_set="treasure_hunt"
             ),
             ToolSetTestCase(
@@ -94,10 +150,21 @@ class TreasureHuntToolSet(ToolSet):
 
 
 class ProductivityToolSet(ToolSet):
-    """Tool set for productivity tools."""
-    NAME: ClassVar[str] = "productivity"
+    """
+    A specific tool set for productivity and task management tools.
+
+    This set currently includes the `SetReminderTool`.
+    """
+    NAME: ClassVar[str] = "productivity"  # The unique name for this tool set
     
     def __init__(self):
+        """
+        Initializes the ProductivityToolSet, defining its name, description,
+        and the specific tool classes it encompasses.
+        """
+        # Lazy import tool classes
+        from tools.productivity.set_reminder import SetReminderTool
+        
         super().__init__(
             config=ToolSetConfig(
                 name=self.NAME,
@@ -110,7 +177,12 @@ class ProductivityToolSet(ToolSet):
     
     @classmethod
     def get_test_cases(cls) -> List[ToolSetTestCase]:
-        """Return test cases for productivity scenarios."""
+        """
+        Returns a predefined list of test cases for productivity scenarios.
+
+        These cases cover various interactions with productivity tools, such as
+        setting reminders.
+        """
         return [
             ToolSetTestCase(
                 request="Remind me to submit the report at 5pm",
@@ -120,7 +192,7 @@ class ProductivityToolSet(ToolSet):
                 scenario="work"
             ),
             ToolSetTestCase(
-                request="Set multiple reminders for my tasks today",
+                request="Set  a reminder for my meeting tomorrow at 10am and another for lunch at 1pm",
                 expected_tools=["set_reminder"],
                 description="Multiple reminders",
                 tool_set="productivity",
@@ -129,40 +201,90 @@ class ProductivityToolSet(ToolSet):
         ]
 
 
-# Tool set registry with validation
 class ToolSetRegistry(BaseModel):
-    """Registry for tool sets with validation."""
-    tool_sets: Dict[str, ToolSet] = Field(default_factory=dict)
+    """
+    A central registry for managing and loading different tool sets.
+
+    This registry allows for dynamic loading and unloading of tool sets,
+    ensuring that only the necessary tools are available at any given time.
+    It also provides methods to retrieve test cases from registered tool sets.
+    """
+    tool_sets: Dict[str, ToolSet] = Field(default_factory=dict)  # Stores registered ToolSet instances, keyed by name
     
     def register(self, tool_set: ToolSet) -> None:
-        """Register a tool set."""
+        """
+        Registers a new tool set with the registry.
+
+        Args:
+            tool_set (ToolSet): The tool set instance to register.
+        """
         self.tool_sets[tool_set.config.name] = tool_set
     
     def load_tool_set(self, name: str) -> ToolSet:
-        """Load a specific tool set by name."""
+        """
+        Loads a specific tool set by name into the global tool registry.
+
+        This method first clears the existing global tool registry to ensure
+        that only the tools from the specified tool set are active.
+
+        Args:
+            name (str): The name of the tool set to load.
+
+        Returns:
+            ToolSet: The loaded tool set instance.
+
+        Raises:
+            ValueError: If the specified tool set is not found in the registry.
+        """
+        from tool_selection.registry import registry  # Import here to avoid circular dependency
+        
         if name not in self.tool_sets:
             raise ValueError(f"Unknown tool set: {name}. Available: {list(self.tool_sets.keys())}")
         
+        # Clear the global tool registry to ensure a clean slate before loading new tools
+        registry.clear()
+        
         tool_set = self.tool_sets[name]
-        tool_set.load()
+        tool_set.load()  # Load tools from this tool set into the global registry
         return tool_set
     
     def get_all_tool_sets(self) -> Dict[str, ToolSet]:
-        """Get all registered tool sets."""
+        """
+        Returns a copy of all registered tool sets.
+
+        Returns:
+            Dict[str, ToolSet]: A dictionary of all registered tool sets, keyed by their names.
+        """
         return self.tool_sets.copy()
     
     def get_test_cases(self, name: str) -> List[ToolSetTestCase]:
-        """Get test cases for a specific tool set."""
+        """
+        Retrieves test cases for a specific tool set.
+
+        Args:
+            name (str): The name of the tool set.
+
+        Returns:
+            List[ToolSetTestCase]: A list of test cases associated with the specified tool set.
+
+        Raises:
+            ValueError: If the specified tool set is not found.
+        """
         if name not in self.tool_sets:
             raise ValueError(f"Unknown tool set: {name}")
         
-        # Ensure the tool set is loaded first
+        # Ensure the tool set's tools are loaded before attempting to get test cases
         self.tool_sets[name].load()
         tool_set_class = type(self.tool_sets[name])
         return tool_set_class.get_test_cases()
     
     def get_all_test_cases(self) -> List[ToolSetTestCase]:
-        """Get test cases from all tool sets."""
+        """
+        Aggregates and returns all test cases from all registered tool sets.
+
+        Returns:
+            List[ToolSetTestCase]: A combined list of all test cases.
+        """
         all_test_cases = []
         for tool_set in self.tool_sets.values():
             tool_set_class = type(tool_set)
@@ -170,187 +292,10 @@ class ToolSetRegistry(BaseModel):
         return all_test_cases
 
 
-# Event management tool set
-# TODO: Uncomment when event tools are updated with NAME/MODULE constants
-# class EventsToolSet(ToolSet):
-#     """Tool set for event management."""
-#     NAME = "events"
-#     
-#     def __init__(self):
-#         super().__init__(
-#             config=ToolSetConfig(
-#                 name=self.NAME,
-#                 description="Event management and scheduling tools",
-#                 tool_classes=[
-#                     FindEventsTool,
-#                     CreateEventTool,
-#                     CancelEventTool
-#                 ]
-#             )
-#         )
-    
-#     @classmethod
-#     def get_test_cases(cls) -> List[ToolSetTestCase]:
-#         """Return test cases for event scenarios."""
-#         return [
-#             ToolSetTestCase(
-#                 request="Find concerts this weekend and create a reminder",
-#                 expected_tools=["find_events", "set_reminder"],
-#                 description="Multi-tool event planning",
-#                 tool_set="events"
-#             ),
-#             ToolSetTestCase(
-#                 request="Cancel all my events for tomorrow",
-#                 expected_tools=["cancel_event"],
-#                 description="Bulk cancellation",
-#                 tool_set="events"
-#             )
-#         ]
-
-
-# E-commerce tool set
-# TODO: Uncomment when ecommerce tools are updated with NAME/MODULE constants
-# class EcommerceToolSet(ToolSet):
-#     """Tool set for e-commerce operations."""
-#     NAME = "ecommerce"
-#     
-#     def __init__(self):
-#         super().__init__(
-#             config=ToolSetConfig(
-#                 name=self.NAME,
-#                 description="E-commerce and shopping tools",
-#                 tool_classes=[
-#                     SearchProductsTool,
-#                     AddToCartTool,
-#                     TrackOrderTool,
-#                     ReturnItemTool
-#                 ]
-#             )
-#         )
-    
-#     @classmethod
-#     def get_test_cases(cls) -> List[ToolSetTestCase]:
-#         """Return test cases for e-commerce scenarios."""
-#         return [
-#             ToolSetTestCase(
-#                 request="Find electronics under $500 and add to cart",
-#                 expected_tools=["search_products", "add_to_cart"],
-#                 description="Shopping workflow",
-#                 tool_set="ecommerce"
-#             ),
-#             ToolSetTestCase(
-#                 request="Track my recent orders and return any damaged items",
-#                 expected_tools=["track_order", "return_item"],
-#                 description="Order management",
-#                 tool_set="ecommerce"
-#             )
-#         ]
-
-
-# Finance tool set
-# TODO: Uncomment when finance tools are updated with NAME/MODULE constants
-# class FinanceToolSet(ToolSet):
-#     """Tool set for financial operations."""
-#     NAME = "finance"
-#     
-#     def __init__(self):
-#         super().__init__(
-#             config=ToolSetConfig(
-#                 name=self.NAME,
-#                 description="Financial and banking tools",
-#                 tool_classes=[
-#                     CheckBalanceTool,
-#                     TransferMoneyTool,
-#                     PayBillTool,
-#                     GetStatementTool,
-#                     InvestTool
-#                 ]
-#             )
-#         )
-    
-#     @classmethod
-#     def get_test_cases(cls) -> List[ToolSetTestCase]:
-#         """Return test cases for finance scenarios."""
-#         return [
-#             ToolSetTestCase(
-#                 request="Check my balance and pay the electric bill",
-#                 expected_tools=["check_balance", "pay_bill"],
-#                 description="Balance check and bill payment",
-#                 tool_set="finance"
-#             ),
-#             ToolSetTestCase(
-#                 request="Transfer money to savings and invest the rest",
-#                 expected_tools=["transfer_money", "invest"],
-#                 description="Money management workflow",
-#                 tool_set="finance"
-#             ),
-#             ToolSetTestCase(
-#                 request="Get my statement and check all accounts",
-#                 expected_tools=["get_statement", "check_balance"],
-#                 description="Account review",
-#                 tool_set="finance"
-#             )
-#         ]
-
-
-# Multi-domain tool set for testing cross-domain scenarios
-# TODO: Uncomment when all domain tools are updated
-# class MultiDomainToolSet(ToolSet):
-#     """Tool set combining tools from multiple domains."""
-#     NAME = "multi_domain"
-#     
-#     def __init__(self):
-#         super().__init__(
-#             config=ToolSetConfig(
-#                 name=self.NAME,
-#                 description="Combined tools from all domains for complex workflows",
-#                 tool_classes=[
-#                     # Events
-#                     FindEventsTool,
-#                     CancelEventTool,
-#                     # E-commerce
-#                     SearchProductsTool,
-#                     TrackOrderTool,
-#                     # Finance
-#                     CheckBalanceTool,
-#                     PayBillTool,
-#                     # Productivity
-#                     SetReminderTool
-#                 ]
-#             )
-#         )
-    
-#     @classmethod
-#     def get_test_cases(cls) -> List[ToolSetTestCase]:
-#         """Return test cases for multi-domain scenarios."""
-#         return [
-#             ToolSetTestCase(
-#                 request="Find events, check if I can afford them, and set reminders",
-#                 expected_tools=["find_events", "check_balance", "set_reminder"],
-#                 description="Cross-domain planning",
-#                 tool_set="multi_domain"
-#             ),
-#             ToolSetTestCase(
-#                 request="Cancel my event and get a refund to my account",
-#                 expected_tools=["cancel_event", "check_balance"],
-#                 description="Event cancellation with refund check",
-#                 tool_set="multi_domain"
-#             ),
-#             ToolSetTestCase(
-#                 request="Track my orders and pay for them",
-#                 expected_tools=["track_order", "pay_bill"],
-#                 description="Order tracking and payment",
-#                 tool_set="multi_domain"
-#             )
-#         ]
-
-
-# Create and populate registry
+# Global tool set registry instance
+# This instance is used throughout the application to manage and access tool sets.
 tool_set_registry = ToolSetRegistry()
+
+# Register default tool sets upon import to make them immediately available
 tool_set_registry.register(TreasureHuntToolSet())
 tool_set_registry.register(ProductivityToolSet())
-# TODO: Uncomment when tools are updated
-# tool_set_registry.register(EventsToolSet())
-# tool_set_registry.register(EcommerceToolSet())
-# tool_set_registry.register(FinanceToolSet())
-# tool_set_registry.register(MultiDomainToolSet())

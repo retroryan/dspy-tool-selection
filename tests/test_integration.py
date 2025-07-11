@@ -2,7 +2,8 @@
 
 import pytest
 from tool_selection.multi_tool_selector import MultiToolSelector
-from tool_selection.tool_registry import MultiToolRegistry
+from tool_selection.registry import registry
+from tool_selection.tool_sets import tool_set_registry
 from shared_utils.llm_factory import setup_llm
 
 
@@ -13,115 +14,107 @@ def setup_test_llm():
 
 
 @pytest.fixture
-def system():
-    """Create a complete system with selector and registry."""
-    registry = MultiToolRegistry()
-    registry.register_all_tools()
-    selector = MultiToolSelector(use_predict=False)
+def treasure_hunt_system():
+    """Create a system with treasure hunt tools loaded."""
+    # Clear and load only treasure hunt tools
+    tool_set_registry.load_tool_set("treasure_hunt")
+    
+    selector = MultiToolSelector(use_chain_of_thought=True)
     
     return {
         "selector": selector,
         "registry": registry,
-        "tools": registry.get_tool_definitions()
+        "tools": list(registry.get_all_tools().values())
     }
 
 
-def test_end_to_end_single_tool(system):
-    """Test complete flow with a single tool."""
-    # Select tool
-    decision = system["selector"](
-        "Check my savings account balance",
-        system["tools"]
+def test_give_hint(treasure_hunt_system):
+    """Test giving a hint about the treasure."""
+    decision = treasure_hunt_system["selector"](
+        "Give me a hint about the treasure",
+        treasure_hunt_system["tools"]
     )
     
-    # Execute tool
-    results = system["registry"].execute(decision)
+    assert len(decision.tool_calls) == 1
+    assert decision.tool_calls[0].tool_name == "give_hint"
     
-    assert len(results) == 1
-    assert results[0]["tool"] == "check_balance"
-    assert "result" in results[0] or "error" in results[0]
-
-
-def test_end_to_end_multi_tool(system):
-    """Test complete flow with multiple tools."""
-    # Select tools
-    decision = system["selector"](
-        "Find concerts in Seattle and check ticket prices",
-        system["tools"]
+    # Execute the tool
+    result = treasure_hunt_system["registry"].execute_tool(
+        decision.tool_calls[0].tool_name,
+        **decision.tool_calls[0].arguments
     )
     
-    # Execute tools
-    results = system["registry"].execute(decision)
+    assert "hint" in result
+    assert isinstance(result["hint"], str)
+
+
+def test_guess_location(treasure_hunt_system):
+    """Test guessing the treasure location."""
+    decision = treasure_hunt_system["selector"](
+        "I think the treasure is in Seattle",
+        treasure_hunt_system["tools"]
+    )
     
-    assert len(results) >= 1
-    for result in results:
-        assert "tool" in result
-        assert "result" in result or "error" in result
+    assert len(decision.tool_calls) == 1
+    assert decision.tool_calls[0].tool_name == "guess_location"
+    
+    # Execute the tool
+    result = treasure_hunt_system["registry"].execute_tool(
+        decision.tool_calls[0].tool_name,
+        **decision.tool_calls[0].arguments
+    )
+    
+    assert "status" in result
+    assert "message" in result
 
 
-def test_multi_tool_scenarios(system):
-    """Test various multi-tool scenarios from the demo."""
-    test_cases = [
-        {
-            "request": "Transfer $500 from savings to checking",
-            "expected_tools": ["transfer_money"]
-        },
-        {
-            "request": "Find electronics under $1000",
-            "expected_tools": ["search_products"]
-        },
-        {
-            "request": "Cancel my event EVT123 due to schedule conflict",
-            "expected_tools": ["cancel_event"]
-        }
+def test_no_tools_needed(treasure_hunt_system):
+    """Test request that doesn't need any tools."""
+    decision = treasure_hunt_system["selector"](
+        "What's the weather like today?",
+        treasure_hunt_system["tools"]
+    )
+    
+    # Should return no tools for unrelated request
+    assert len(decision.tool_calls) == 0
+
+
+def test_treasure_hunt_scenarios(treasure_hunt_system):
+    """Test various treasure hunt scenarios."""
+    scenarios = [
+        ("I need help finding the treasure", ["give_hint"]),
+        ("Is it at the library?", ["guess_location"]),
+        ("Can you give me another clue?", ["give_hint"]),
+        ("I think it's in Seattle on Lenora Street", ["guess_location"]),
     ]
     
-    for test in test_cases:
-        decision = system["selector"](test["request"], system["tools"])
+    for request, expected_tools in scenarios:
+        decision = treasure_hunt_system["selector"](
+            request,
+            treasure_hunt_system["tools"]
+        )
         
-        # Check that the selector returned at least one tool
-        assert len(decision.tool_calls) >= 1, f"No tools selected for request: {test['request']}. Reasoning: {decision.reasoning}"
-        
-        results = system["registry"].execute(decision)
-        
-        assert len(results) >= 1
-        
-        # Check that at least one expected tool was selected
+        # Get selected tool names
         selected_tools = [tc.tool_name for tc in decision.tool_calls]
-        matching_tools = [t for t in test["expected_tools"] if t in selected_tools]
-        assert len(matching_tools) >= 1, f"Expected one of {test['expected_tools']}, got {selected_tools}"
+        
+        # Check that expected tools were selected
+        for expected in expected_tools:
+            assert expected in selected_tools, f"Expected {expected} for request: {request}"
 
 
-def test_error_handling(system):
-    """Test system behavior with edge cases."""
-    # Empty request
-    decision = system["selector"]("", system["tools"])
-    assert len(decision.tool_calls) >= 0  # Should handle gracefully
-    
-    # Very long request
-    long_request = "I need to " + " and ".join([
-        "find events", "check balance", "transfer money", 
-        "search products", "track orders"
-    ] * 5)
-    
-    decision = system["selector"](long_request, system["tools"])
-    results = system["registry"].execute(decision)
-    
-    # Should still work but might limit number of tools
-    assert isinstance(results, list)
-
-
-@pytest.mark.parametrize("use_predict", [False, True])
-def test_both_modes(use_predict):
+@pytest.mark.parametrize("use_chain_of_thought", [True, False])
+def test_selector_modes(use_chain_of_thought):
     """Test both ChainOfThought and Predict modes."""
-    registry = MultiToolRegistry()
-    registry.register_all_tools()
-    selector = MultiToolSelector(use_predict=use_predict)
+    # Load treasure hunt tools
+    tool_set_registry.load_tool_set("treasure_hunt")
+    
+    selector = MultiToolSelector(use_chain_of_thought=use_chain_of_thought)
+    tools = list(registry.get_all_tools().values())
     
     decision = selector(
-        "Check my balance",
-        registry.get_tool_definitions()
+        "Give me a hint about the treasure",
+        tools
     )
     
     assert len(decision.tool_calls) >= 1
-    assert decision.tool_calls[0].tool_name == "check_balance"
+    assert decision.tool_calls[0].tool_name == "give_hint"

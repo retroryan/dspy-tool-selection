@@ -1,5 +1,11 @@
 #!/usr/bin/env poetry run python3
-"""Convert model comparison CSV results to a markdown summary."""
+"""
+Convert model comparison CSV results to a markdown summary.
+
+This script reads a CSV file containing model comparison results, processes the data,
+and generates a human-readable Markdown summary, including performance rankings
+and mode comparisons.
+"""
 
 import sys
 import pandas as pd

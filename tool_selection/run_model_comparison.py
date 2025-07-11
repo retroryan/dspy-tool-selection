@@ -1,5 +1,12 @@
 #!/usr/bin/env poetry run python3
-"""Run the multi-tool demo with multiple Ollama models and compare results."""
+"""
+Run the multi-tool demo with multiple Ollama models and compare results.
+
+This script automates the process of evaluating different Ollama language models
+(LLMs) on their ability to perform multi-tool selection within the DSPy framework.
+It runs the `multi_demo` for each specified model and for both `Predict` and
+`ChainOfThought` modes, then aggregates and presents the performance metrics.
+"""
 
 import subprocess
 import sys

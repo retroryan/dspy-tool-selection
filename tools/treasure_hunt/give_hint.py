@@ -1,12 +1,10 @@
-"""Give hint tool implementation using the new base classes."""
-from typing import List, ClassVar
+"""Give hint tool implementation using the unified base class."""
+from typing import List, ClassVar, Dict, Any, Type
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class GiveHintTool(BaseTool):
     """Tool for giving progressive hints about the treasure location."""
     
@@ -14,21 +12,18 @@ class GiveHintTool(BaseTool):
     MODULE: ClassVar[str] = "tools.treasure_hunt.give_hint"
     
     class Arguments(BaseModel):
-        """Argument validation model for give_hint tool."""
+        """Argument validation model."""
         hint_total: int = Field(
             default=0, 
             ge=0, 
             description="The total number of hints already given"
         )
     
-    metadata = ToolMetadata(
-        name=NAME,
-        description="Give a progressive hint about the treasure location",
-        category="treasure_hunt",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Give a progressive hint about the treasure location"
+    args_model: Type[BaseModel] = Arguments
     
-    def execute(self, hint_total: int = 0) -> dict:
+    def execute(self, hint_total: int = 0) -> Dict[str, Any]:
         """Execute the tool to give a hint."""
         hints = [
             "The treasure is in a city known for its coffee and rain.",

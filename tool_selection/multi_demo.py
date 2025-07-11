@@ -19,8 +19,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 # Import new registry and models
 from .registry import registry
-from .base_tool import BaseTool, ToolTestCase
-from .tool_sets import tool_set_registry, TreasureHuntToolSet, ProductivityToolSet
+from .base_tool import ToolTestCase
+from .tool_sets import TreasureHuntToolSet, ProductivityToolSet, ToolSetRegistry
 
 # Import shared utilities
 from shared_utils.llm_factory import setup_llm
@@ -30,7 +30,6 @@ from pydantic import BaseModel, Field
 # Import shared utilities
 from shared_utils import (
     ToolSelectionMetrics, 
-    TestCase, 
     TestResult, 
     TestSummary,
     ToolSelectionEvaluation,
@@ -42,85 +41,77 @@ from .multi_tool_selector import MultiToolSelector
 from .models import MultiToolDecision, ToolCall
 
 
-def load_tools_from_sets(tool_set_names: List[str] = None):
-    """Load tools from specified tool sets.
-    
-    Args:
-        tool_set_names: List of tool set names to load. If None, loads all.
+
+
+def get_test_cases_from_registry(tool_set_registry: ToolSetRegistry, tool_sets: List[str] = None) -> List[ToolTestCase]:
     """
-    if tool_set_names is None:
-        # Load all available tool sets
-        for name, tool_set in tool_set_registry.get_all_tool_sets().items():
-            tool_set.load()
-    else:
-        # Load specific tool sets
-        for name in tool_set_names:
-            tool_set_registry.load_tool_set(name)
+    Retrieves a combined list of test cases from specified tool sets and individual tools.
 
+    This function ensures that only relevant test cases are included based on the
+    tool sets being loaded for the current demo run.
 
-def get_test_cases_from_registry() -> List[TestCase]:
-    """Get test cases from all registered tools and tool sets."""
+    Args:
+        tool_set_registry (ToolSetRegistry): The registry containing all defined tool sets.
+        tool_sets (List[str], optional): A list of tool set names to retrieve test cases from.
+                                         If None, test cases from all registered tool sets are included.
+
+    Returns:
+        List[ToolTestCase]: A list of ToolTestCase objects relevant to the loaded tools.
+    """
     test_cases = []
     
-    # Get test cases from individual tools
-    tool_test_cases = registry.get_all_test_cases()
+    if tool_sets is None:
+        # If no specific tool sets are provided, get test cases from all registered tool sets
+        tool_set_test_cases = tool_set_registry.get_all_test_cases()
+    else:
+        # Otherwise, collect test cases only from the specified tool sets
+        tool_set_test_cases = []
+        for tool_set_name in tool_sets:
+            tool_set_test_cases.extend(tool_set_registry.get_test_cases(tool_set_name))
     
-    # Get test cases from tool sets
-    tool_set_test_cases = tool_set_registry.get_all_test_cases()
+    # Identify all tool names that are part of the currently loaded tool sets
+    loaded_tool_names = set()
+    if tool_sets:
+        for tool_set_name in tool_sets:
+            tool_set = tool_set_registry.tool_sets.get(tool_set_name)
+            if tool_set:
+                loaded_tool_names.update(tool_set.get_loaded_tools())
     
-    # Convert to shared TestCase format
-    for tc in tool_test_cases + tool_set_test_cases:
-        test_cases.append(TestCase(
-            request=tc.request,
-            expected_tools=tc.expected_tools,
-            description=tc.description
-        ))
+    # Get test cases directly associated with individual tools, filtering by loaded tool names
+    tool_test_cases = []
+    all_tool_test_cases = registry.get_all_test_cases()
+    for tc in all_tool_test_cases:
+        # Include tool-specific test cases only if their expected tools are among the loaded ones
+        if not tool_sets or any(tool in loaded_tool_names for tool in tc.expected_tools):
+            tool_test_cases.append(tc)
+    
+    # Combine tool set specific test cases with individual tool test cases
+    test_cases = tool_test_cases + tool_set_test_cases
     
     return test_cases
 
 
-def convert_tools_to_definitions() -> List['MultiTool']:
-    """Convert registered tools to the format expected by MultiToolSelector."""
-    from .models import MultiTool, MultiToolName, ToolArgument
-    
-    definitions = []
-    for tool in registry.get_all_tools().values():
-        schema = tool.to_schema()
-        
-        # Convert tool name to enum
-        try:
-            tool_name_enum = MultiToolName(schema['name'])
-        except ValueError:
-            # Skip tools not in the MultiToolName enum
-            continue
-            
-        # Convert arguments to ToolArgument format
-        tool_arguments = []
-        for arg in schema['arguments']:
-            tool_arguments.append(ToolArgument(
-                name=arg['name'],
-                type=arg['type'],
-                description=arg['description']
-            ))
-        
-        multi_tool = MultiTool(
-            name=tool_name_enum,
-            description=schema['description'],
-            arguments=tool_arguments,
-            category=tool.metadata.category
-        )
-        definitions.append(multi_tool)
-    
-    return definitions
 
 
 def execute_decision(decision: MultiToolDecision) -> List[dict]:
-    """Execute tools based on the decision using the new registry."""
+    """
+    Executes the tools specified in a MultiToolDecision object.
+
+    Iterates through each tool call in the decision, attempts to execute the tool
+    using the global registry, and collects the results or any errors encountered.
+
+    Args:
+        decision (MultiToolDecision): The decision object containing tool calls to execute.
+
+    Returns:
+        List[dict]: A list of dictionaries, each containing the tool name and its result
+                    or an error message if execution failed.
+    """
     results = []
     
     for tool_call in decision.tool_calls:
         try:
-            # Execute using the new registry
+            # Execute the tool using the centralized registry's execute_tool method
             result = registry.execute_tool(
                 tool_call.tool_name,
                 **tool_call.arguments
@@ -130,11 +121,13 @@ def execute_decision(decision: MultiToolDecision) -> List[dict]:
                 "result": result
             })
         except ValueError as e:
+            # Handle cases where the tool name is unknown or arguments are invalid
             results.append({
                 "tool": tool_call.tool_name,
                 "error": str(e)
             })
         except Exception as e:
+            # Catch any other unexpected errors during tool execution
             results.append({
                 "tool": tool_call.tool_name,
                 "error": f"Execution error: {str(e)}"
@@ -153,6 +146,9 @@ def run_demo(predict=False, tool_sets=None):
     Returns:
         Dictionary containing summary and detailed results
     """
+
+    tool_set_registry = createToolSetRegistry()
+
     start_time = time.time()
     formatter = ConsoleFormatter()
     metrics = ToolSelectionMetrics()
@@ -175,16 +171,27 @@ def run_demo(predict=False, tool_sets=None):
     
     print(f"Loading tool sets: {tool_sets}")
     
-    load_tools_from_sets(tool_sets)
+    # Load the requested tool sets into the registry
+    if len(tool_sets) == 1:
+        # Single tool set - use load_tool_set which clears registry
+        tool_set_registry.load_tool_set(tool_sets[0])
+    else:
+        # Multiple tool sets - clear registry then load each
+        registry.clear()
+        for tool_set_name in tool_sets:
+            tool_set = tool_set_registry.tool_sets.get(tool_set_name)
+            if tool_set:
+                tool_set.load()
     
-    # Get tool definitions and test cases
-    tool_definitions = convert_tools_to_definitions()
-    test_cases = get_test_cases_from_registry()
+    # Get tools directly from registry - now contains only loaded tools!
+    tools = list(registry.get_all_tools().values())
+    test_cases = get_test_cases_from_registry(tool_set_registry, tool_sets)
     
-    print(f"Loaded {len(tool_definitions)} tools with {len(test_cases)} test cases\n")
+    print(f"Loaded {len(tools)} tools with {len(test_cases)} test cases\n")
     
-    # Initialize selector with dynamic tool names
-    selector = MultiToolSelector(use_predict=predict)
+    # Initialize selector
+    use_chain_of_thought = not predict  # predict=True means don't use chain of thought
+    selector = MultiToolSelector(use_chain_of_thought=use_chain_of_thought)
     
     # Track results
     test_results = []
@@ -201,7 +208,7 @@ def run_demo(predict=False, tool_sets=None):
         
         try:
             # Get LLM's decision
-            decision = selector(test_case.request, tool_definitions)
+            decision = selector(test_case.request, tools)
             
             # Extract actual tools selected
             actual_tools = [tc.tool_name for tc in decision.tool_calls]
@@ -368,6 +375,20 @@ def main():
             json.dump(results, f, indent=2, default=str)
         print(f"\n💾 Results saved to: test_results_new.json")
 
+
+
+def createToolSetRegistry() -> ToolSetRegistry:
+    """Creates and populates the global tool set registry."""
+    # Create and populate registry
+    tool_set_registry = ToolSetRegistry()
+    tool_set_registry.register(TreasureHuntToolSet())
+    tool_set_registry.register(ProductivityToolSet())
+    # TODO: Uncomment when tools are updated
+    # tool_set_registry.register(EventsToolSet())
+    # tool_set_registry.register(EcommerceToolSet())
+    # tool_set_registry.register(FinanceToolSet())
+    # tool_set_registry.register(MultiDomainToolSet())
+    return tool_set_registry
 
 if __name__ == "__main__":
     main()

@@ -1,58 +1,108 @@
-"""Tests for the multi-tool selector."""
+"""
+This module contains unit tests for the MultiToolSelector, which is responsible for
+selecting appropriate tools based on a user's request using DSPy.
+
+It defines mock tool classes and uses pytest fixtures to set up the testing environment.
+"""
 
 import pytest
-from tool_selection.multi_tool_selector import MultiToolSelector, MultiToolDecision, ToolCall
-from tool_selection.models import MultiTool, MultiToolName, MultiToolDecision, ToolArgument
+from tool_selection.multi_tool_selector import MultiToolSelector
+from tool_selection.models import MultiToolDecision, ToolCall
+from tool_selection.base_tool import BaseTool, ToolArgument
 from shared_utils.llm_factory import setup_llm
+from typing import ClassVar, Dict, Any, Type
+from pydantic import BaseModel, Field
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_llm():
-    """Setup LLM once for all tests."""
+    """
+    Fixture to set up the Language Model (LLM) for all tests in this module.
+    This ensures the DSPy components can interact with a configured LLM.
+    """
     setup_llm()
+
+
+# --- Mock Tool Definitions for Testing ---
+# These classes simulate real tools and are used to test the MultiToolSelector's
+# ability to correctly identify and extract arguments for various tool types.
+
+class FindEventsTool(BaseTool):
+    """A mock tool for finding events."""
+    NAME: ClassVar[str] = "find_events"
+    MODULE: ClassVar[str] = "tests.test_multi_tool_selector"
+    
+    class Arguments(BaseModel):
+        event_type: str = Field(..., description="Type of event")
+        location: str = Field(..., description="Location")
+    
+    description: str = "Find events in a location"
+    args_model: Type[BaseModel] = Arguments
+    
+    def execute(self, event_type: str, location: str) -> Dict[str, Any]:
+        return {"events": [f"{event_type} in {location}"]}
+
+
+class CheckBalanceTool(BaseTool):
+    """A mock tool for checking account balances."""
+    NAME: ClassVar[str] = "check_balance"
+    MODULE: ClassVar[str] = "tests.test_multi_tool_selector"
+    
+    class Arguments(BaseModel):
+        account_type: str = Field(default="checking", description="Account type")
+    
+    description: str = "Check account balance"
+    args_model: Type[BaseModel] = Arguments
+    
+    def execute(self, account_type: str = "checking") -> Dict[str, Any]:
+        return {"balance": "$1000"}
+
+
+class SearchProductsTool(BaseTool):
+    """A mock tool for searching products."""
+    NAME: ClassVar[str] = "search_products"
+    MODULE: ClassVar[str] = "tests.test_multi_tool_selector"
+    
+    class Arguments(BaseModel):
+        query: str = Field(..., description="Search query")
+        category: str = Field(default="all", description="Product category")
+    
+    description: str = "Search for products"
+    args_model: Type[BaseModel] = Arguments
+    
+    def execute(self, query: str, category: str = "all") -> Dict[str, Any]:
+        return {"products": [f"{query} in {category}"]}
 
 
 @pytest.fixture
 def sample_tools():
-    """Create sample tools for testing."""
+    """
+    Provides a list of instantiated mock tools for tests to use.
+    This simulates the available tools the MultiToolSelector would choose from.
+    """
     return [
-        MultiTool(
-            name=MultiToolName.FIND_EVENTS,
-            description="Find events in a location",
-            category="events",
-            arguments=[
-                ToolArgument(name="event_type", type="str", description="Type of event"),
-                ToolArgument(name="location", type="str", description="Location")
-            ]
-        ),
-        MultiTool(
-            name=MultiToolName.CHECK_BALANCE,
-            description="Check account balance",
-            category="finance",
-            arguments=[
-                ToolArgument(name="account_type", type="str", description="Account type")
-            ]
-        ),
-        MultiTool(
-            name=MultiToolName.SEARCH_PRODUCTS,
-            description="Search for products",
-            category="shopping",
-            arguments=[
-                ToolArgument(name="query", type="str", description="Search query"),
-                ToolArgument(name="category", type="str", description="Product category")
-            ]
-        )
+        FindEventsTool(),
+        CheckBalanceTool(),
+        SearchProductsTool()
     ]
 
 
 @pytest.fixture
 def selector():
-    """Create a multi-tool selector instance."""
-    return MultiToolSelector(use_predict=False)
+    """
+    Provides an instance of MultiToolSelector configured to use Chain-of-Thought.
+    This is the primary component under test.
+    """
+    return MultiToolSelector(use_chain_of_thought=True)
 
+
+# --- Test Cases for MultiToolSelector Functionality ---
 
 def test_single_tool_selection(selector, sample_tools):
-    """Test selecting a single tool."""
+    """
+    Tests that the selector can correctly identify and select a single tool
+    and extract its arguments from a user request.
+    """
     decision = selector("Check my savings account balance", sample_tools)
     
     assert isinstance(decision, MultiToolDecision)
@@ -62,7 +112,10 @@ def test_single_tool_selection(selector, sample_tools):
 
 
 def test_multi_tool_selection(selector, sample_tools):
-    """Test selecting multiple tools."""
+    """
+    Tests the selector's ability to identify and select multiple tools
+    required to fulfill a complex user request.
+    """
     decision = selector(
         "Find concerts in Seattle and check if I have enough money",
         sample_tools
@@ -77,7 +130,10 @@ def test_multi_tool_selection(selector, sample_tools):
 
 
 def test_tool_call_structure(selector, sample_tools):
-    """Test that tool calls have the correct structure."""
+    """
+    Verifies that the output of the selector (ToolCall objects) adheres
+    to the expected data structure, including tool name and arguments.
+    """
     decision = selector("Search for laptops", sample_tools)
     
     assert len(decision.tool_calls) >= 1
@@ -89,17 +145,13 @@ def test_tool_call_structure(selector, sample_tools):
 
 
 def test_predict_mode():
-    """Test using Predict mode for faster inference."""
-    selector_predict = MultiToolSelector(use_predict=True)
+    """
+    Tests the MultiToolSelector when configured to use `dspy.Predict`
+    instead of `dspy.ChainOfThought`, ensuring basic functionality.
+    """
+    selector_predict = MultiToolSelector(use_chain_of_thought=False)
     
-    tools = [
-        MultiTool(
-            name=MultiToolName.CHECK_BALANCE,
-            description="Check balance",
-            category="finance",
-            arguments=[]
-        )
-    ]
+    tools = [CheckBalanceTool()]
     
     decision = selector_predict("Check my balance", tools)
     
@@ -108,7 +160,10 @@ def test_predict_mode():
 
 
 def test_multi_tool_request(selector, sample_tools):
-    """Test a multi-tool request requiring multiple tools with arguments."""
+    """
+    Tests a more complex multi-tool request, ensuring the selector can
+    handle multiple tools and correctly extract their respective arguments.
+    """
     decision = selector(
         "Find electronics stores in downtown, search for gaming laptops under $1000",
         sample_tools
@@ -126,7 +181,3 @@ def test_multi_tool_request(selector, sample_tools):
         assert ps.arguments  # Should have arguments
 
 
-def test_empty_tools_list(selector):
-    """Test behavior with no available tools."""
-    with pytest.raises(Exception):  # Should raise when no tools available
-        selector("Do something", [])

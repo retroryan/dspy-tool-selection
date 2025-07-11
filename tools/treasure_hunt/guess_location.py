@@ -1,12 +1,10 @@
-"""Guess location tool implementation using the new base classes."""
-from typing import List, Optional, ClassVar
+"""Guess location tool implementation using the unified base class."""
+from typing import List, Optional, ClassVar, Dict, Any, Type
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class GuessLocationTool(BaseTool):
     """Tool for guessing the treasure location."""
     
@@ -14,7 +12,7 @@ class GuessLocationTool(BaseTool):
     MODULE: ClassVar[str] = "tools.treasure_hunt.guess_location"
     
     class Arguments(BaseModel):
-        """Argument validation model for guess_location tool."""
+        """Argument validation model."""
         address: Optional[str] = Field(default="", description="The street address guess")
         city: Optional[str] = Field(default="", description="The city guess")
         state: Optional[str] = Field(default="", description="The state guess")
@@ -28,14 +26,11 @@ class GuessLocationTool(BaseTool):
                 self.city = ""
                 self.state = ""
     
-    metadata = ToolMetadata(
-        name=NAME,
-        description="Guess the treasure location based on address, city, or state",
-        category="treasure_hunt",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Guess the treasure location based on address, city, or state"
+    args_model: Type[BaseModel] = Arguments
     
-    def execute(self, address: str = "", city: str = "", state: str = "") -> dict:
+    def execute(self, address: str = "", city: str = "", state: str = "") -> Dict[str, Any]:
         """Execute the tool to check if the guess is correct."""
         # Check if the guess is correct
         if "seattle" in city.lower() and "lenora" in address.lower():

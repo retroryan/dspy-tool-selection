@@ -1,4 +1,9 @@
-"""Multi-tool registry with multiple domain-specific tools for testing LLM tool selection."""
+"""This module defines `TestMultiToolRegistry`, a specialized registry used for testing
+the LLM's tool selection capabilities. It contains mock tool definitions across
+various domains (events, e-commerce, finance) to simulate tool interactions
+without requiring full, functional tool implementations. This allows for isolated
+testing of the tool selection logic within the DSPy framework.
+"""
 
 import sys
 from pathlib import Path
@@ -6,31 +11,35 @@ from typing import List, Dict, Callable, Any
 
 sys.path.append(str(Path(__file__).parent.parent / "tools"))
 
-from .models import MultiToolName, MultiTool, MultiToolDecision, ToolCall, ToolArgument
+from tool_selection.models import MultiToolName, MultiTool, MultiToolDecision, ToolCall, ToolArgument
 
 
-class MultiToolRegistry:
-    """Registry for multi-domain tools."""
+class TestMultiToolRegistry:
+    """Registry for multi-domain tools used specifically for testing purposes."""
     
     def __init__(self):
         self._tools: Dict[MultiToolName, MultiTool] = {}
         self._functions: Dict[MultiToolName, Callable] = {}
         
     def register(self, tool: MultiTool, func: Callable):
-        """Register a tool with its schema and function."""
+        """Register a tool with its schema and function.
+        These tools are mock implementations for testing.
+        """
         self._tools[tool.name] = tool
         self._functions[tool.name] = func
         
     def get_tool_definitions(self) -> List[MultiTool]:
-        """Get all tool schemas."""
+        """Get all tool schemas registered for testing."""
         return list(self._tools.values())
         
     def get_tool_names(self) -> tuple[str, ...]:
-        """Get all registered tool names."""
+        """Get all registered mock tool names."""
         return tuple(tool.name.value for tool in self._tools.values())
         
     def execute(self, decision: MultiToolDecision) -> List[dict]:
-        """Execute multiple tools based on the decision."""
+        """Execute multiple mock tools based on the decision.
+        This simulates the execution of tools during testing.
+        """
         results = []
         
         for tool_call in decision.tool_calls:
@@ -68,9 +77,11 @@ class MultiToolRegistry:
         return results
         
     def register_all_tools(self):
-        """Register all multi-domain tools for testing."""
+        """Register all multi-domain mock tools for testing purposes.
+        These are simplified representations of tools for LLM interaction testing.
+        """
         
-        # Events tools
+        # Events tools (mock implementations)
         self.register(
             MultiTool(
                 name=MultiToolName.FIND_EVENTS,
@@ -112,7 +123,7 @@ class MultiToolRegistry:
             lambda args: {"status": "cancelled", "event_id": args.get("event_id", "unknown")}
         )
         
-        # E-commerce tools
+        # E-commerce tools (mock implementations)
         self.register(
             MultiTool(
                 name=MultiToolName.SEARCH_PRODUCTS,
@@ -166,7 +177,7 @@ class MultiToolRegistry:
             lambda args: {"return_id": "RET456", "status": "processing", "refund_amount": "$99.99"}
         )
         
-        # Finance tools
+        # Finance tools (mock implementations)
         self.register(
             MultiTool(
                 name=MultiToolName.CHECK_BALANCE,

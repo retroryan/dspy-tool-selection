@@ -1,150 +1,187 @@
-"""Multi-tool selector using dynamic Literal types.
+"""DSPy module for multi-tool selection with dynamic Literal types.
 
-This module demonstrates the proper DSPy pattern for multi-tool selection.
-It uses type-safe dynamic signatures to eliminate string
-parsing and provide robust multi-tool selection.
+This module implements tool selection using DSPy's native Pydantic support
+with dynamic signature generation for compile-time type safety.
 """
 
-__all__ = ['MultiToolSelector']
-
 import dspy
+from typing import List, Dict, Any, Optional, Literal, Type
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Literal, Optional
 
-# Import shared models from the new module
-from .models import MultiTool, MultiToolDecision, ToolCall
+from .models import MultiToolDecision, ToolCall
+from .base_tool import BaseTool, ToolArgument
 
 
-# Step 2: Dynamic Signature Factory
-def create_multi_tool_signature(tool_names: tuple[str, ...]):
-    """Create a signature with dynamic Literal types for multi-tool selection."""
+class ToolInfo(BaseModel):
+    """Information about an available tool."""
+    name: str = Field(..., description="Tool identifier")
+    description: str = Field(..., description="What the tool does")
+    arguments: List[ToolArgument] = Field(default_factory=list, description="Tool arguments")
+
+
+def create_dynamic_tool_signature(tool_names: tuple[str, ...]) -> Type[dspy.Signature]:
+    """Create a signature with dynamic Literal types for compile-time type safety.
     
-    # Dynamic ToolCall with Literal constraint
-    class DynamicToolCall(BaseModel):
+    This factory function generates a DSPy signature that constrains tool selection
+    to only the available tools, providing type safety at the signature level.
+    
+    Args:
+        tool_names: Tuple of available tool names
+        
+    Returns:
+        A dynamically created signature class with Literal type constraints
+    """
+    
+    # Create dynamic ToolSelection model with Literal constraint
+    class DynamicToolSelection(BaseModel):
+        """A tool selection with compile-time type safety."""
         tool_name: Literal[tool_names]  # Type-safe tool names!
-        arguments: Dict[str, Any] = Field(default_factory=dict)
+        arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments for the tool")
+        confidence: float = Field(ge=0, le=1, description="Confidence in this selection (0-1)")
     
+    # Create the dynamic signature
     class DynamicMultiToolSignature(dspy.Signature):
-        """
-        Select one or more tools to fulfill the user's request.
+        """Select multiple tools to accomplish a user's request.
         
-        Steps:
-        1. Understand the user's goal
-        2. Identify which tools are needed
-        3. Determine the order of execution
-        4. Extract arguments for each tool
-        
-        Rules:
-        - Select only the necessary tools
-        - Order matters - tools should be in execution order
-        - Extract all required arguments from the user's request
-        - If arguments are missing, note it in the reasoning
+        Analyze the request and select the appropriate tools with their arguments.
+        Consider tool capabilities, required arguments, and how tools might work together.
+        Only select from the available tools provided.
         """
+        
+        # DSPy Signatures define the input/output behavior of a DSPy module.
+        # They are essentially a contract for the language model.
+        # InputField and OutputField specify the role and description of each field.
+        
         # Inputs
-        user_request: str = dspy.InputField(desc="What the user wants to do")
-        available_tools: str = dspy.InputField(desc="Available tools with descriptions")
-        
-        # Outputs (properly typed!)
-        tool_calls: List[DynamicToolCall] = dspy.OutputField(
-            desc="List of tools to call in order with their arguments"
+        user_request: str = dspy.InputField(
+            desc="The user's request that may require one or more tools to accomplish"
         )
+        available_tools: List[ToolInfo] = dspy.InputField(
+            desc="List of available tools with their descriptions and required arguments"
+        )
+        
+        # Outputs with dynamic type constraints
+        # DSPy leverages Pydantic models to enforce structured outputs from the LM.
+        # The Literal type ensures only valid tool names can be selected.
         reasoning: str = dspy.OutputField(
-            desc="Explanation of why these tools were selected and how they fulfill the request"
+            desc="Step-by-step analysis of which tools are needed and why"
+        )
+        selected_tools: List[DynamicToolSelection] = dspy.OutputField(
+            desc="List of selected tools with their arguments and confidence scores"
+        )
+        execution_order_matters: bool = dspy.OutputField(
+            desc="Whether the order of tool execution is important",
+            default=False
         )
     
     return DynamicMultiToolSignature
 
 
-# Step 3: Simple Multi-Tool Selector
 class MultiToolSelector(dspy.Module):
-    """Multi-tool selector using dynamic Literal types - no string parsing needed!"""
+    """
+    DSPy module for multi-tool selection with dynamic type safety.
+
+    This module is responsible for taking a user's request and a list of available tools,
+    then using a language model (via DSPy) to decide which tools to call and with what arguments.
+    It dynamically generates DSPy signatures to ensure type safety based on the available tools.
+    """
     
-    def __init__(self, use_predict: bool = False):
-        """Initialize the selector.
-        
-        Args:
-            use_predict: If True, use Predict instead of ChainOfThought
+    def __init__(self, use_chain_of_thought: bool = True, max_tools: int = 5):
         """
-        super().__init__()
-        self._use_predict = use_predict
-        self._signature_class = None
-        self._selector = None
+        Initializes the MultiToolSelector module.
+
+        Args:
+            use_chain_of_thought (bool): If True, the selector will use DSPy's ChainOfThought
+                                         predictor for more elaborate reasoning. If False,
+                                         it will use a simpler DSPy.Predict.
+            max_tools (int): The maximum number of tools the selector is allowed to choose
+                             in a single decision. This helps to constrain the output.
+        """
+        super().__init__()  # Always call super().__init__() as per DSPy best practices
+        
+        self.max_tools = max_tools  # Store the maximum number of tools to select
+        self.use_chain_of_thought = use_chain_of_thought  # Store the CoT preference
+        self._signature_cache = {}  # Cache for dynamically generated DSPy signatures
+        
+    def _get_or_create_signature(self, tool_names: tuple[str, ...]) -> Type[dspy.Signature]:
+        """Get cached signature or create new one for given tools.
+        
+        This ensures we reuse signatures for the same set of tools,
+        improving performance and consistency.
+        """
+        cache_key = tool_names
+        if cache_key not in self._signature_cache:
+            self._signature_cache[cache_key] = create_dynamic_tool_signature(tool_names)
+        return self._signature_cache[cache_key]
     
-    def _ensure_initialized(self, tool_names: tuple[str, ...]):
-        """Lazy initialization with tool names."""
-        if self._selector is None:
-            self._signature_class = create_multi_tool_signature(tool_names)
-            if self._use_predict:
-                self._selector = dspy.Predict(self._signature_class)
-            else:
-                self._selector = dspy.ChainOfThought(self._signature_class)
-    
-    def forward(self, user_request: str, available_tools: List[MultiTool]) -> MultiToolDecision:
-        """Select multiple tools based on user request.
+    def forward(self, request: str, tools: List[BaseTool]) -> MultiToolDecision:
+        """Select tools based on user request with compile-time type safety.
+        
+        The `forward` method defines the logic of the DSPy module.
+        When this module is called, the `forward` method is executed.
+        It takes inputs, uses the defined predictors, and returns the output.
         
         Args:
-            user_request: What the user wants to do
-            available_tools: List of available MultiTool objects
+            request: The user's request
+            tools: Available BaseTool instances
             
         Returns:
-            MultiToolDecision with type-safe tool calls
+            MultiToolDecision with selected tools and reasoning
         """
         # Extract tool names for dynamic signature
-        tool_names = tuple(tool.name.value for tool in available_tools)
-        self._ensure_initialized(tool_names)
+        tool_names = tuple(tool.name for tool in tools)
+        tool_map = {tool.name: tool for tool in tools}
         
-        # Format tools for the prompt
-        tools_description = self._format_tools(available_tools)
-        
-        # Let DSPy handle everything - no manual parsing!
-        result = self._selector(
-            user_request=user_request,
-            available_tools=tools_description
-        )
-        
-        # Convert DynamicToolCall instances to ToolCall instances
-        tool_calls = [
-            ToolCall(
-                tool_name=tc.tool_name,
-                arguments=tc.arguments
-            )
-            for tc in result.tool_calls
-        ]
-        
-        # Return the decision model
-        return MultiToolDecision(
-            tool_calls=tool_calls,
-            reasoning=result.reasoning
-        )
-    
-    def _format_tools(self, tools: List[MultiTool]) -> str:
-        """Format tools in a clear, structured way."""
-        lines = []
-        
-        # Group by category for better organization
-        by_category = {}
+        # Convert BaseTool instances to ToolInfo
+        tool_infos = []
         for tool in tools:
-            category = tool.category
-            if category not in by_category:
-                by_category[category] = []
-            by_category[category].append(tool)
+            tool_infos.append(ToolInfo(
+                name=tool.name,
+                description=tool.description,
+                arguments=tool.arguments
+            ))
         
-        # Format each category
-        for category, category_tools in sorted(by_category.items()):
-            lines.append(f"\n{category.upper()} TOOLS:")
-            for tool in sorted(category_tools, key=lambda t: t.name.value):
-                # Format arguments
-                if tool.arguments:
-                    args = ", ".join([
-                        f"{arg.name} ({arg.type})"
-                        for arg in tool.arguments
-                    ])
-                    args_str = f" - Args: {args}"
-                else:
-                    args_str = " - No arguments"
-                
-                lines.append(f"- {tool.name.value}: {tool.description}{args_str}")
+        # Get or create dynamic signature for these specific tools
+        DynamicSignature = self._get_or_create_signature(tool_names)
         
-        return "\n".join(lines).strip()
-
-
+        # Create predictor with dynamic signature
+        # dspy.ChainOfThought encourages step-by-step reasoning
+        # dspy.Predict is a basic predictor for direct generation
+        if self.use_chain_of_thought:
+            predictor = dspy.ChainOfThought(DynamicSignature)
+        else:
+            predictor = dspy.Predict(DynamicSignature)
+        
+        # Execute with type-safe signature
+        # The dynamic Literal type ensures only valid tool names can be selected
+        result = predictor(
+            user_request=request,
+            available_tools=tool_infos
+        )
+        
+        # Convert selections to ToolCall objects
+        # The dynamic Literal type ensures tool_name is always valid
+        valid_selections = []
+        for selection in result.selected_tools[:self.max_tools]:
+            # Tool name is guaranteed to be valid by Literal type
+            tool = tool_map[selection.tool_name]
+            
+            # Validate arguments using the tool's args_model if available
+            arguments = selection.arguments
+            if tool.args_model:
+                try:
+                    validated = tool.args_model(**arguments)
+                    arguments = validated.model_dump()
+                except Exception:
+                    # Keep original arguments if validation fails
+                    pass
+            
+            valid_selections.append(ToolCall(
+                tool_name=selection.tool_name,
+                arguments=arguments
+            ))
+        
+        return MultiToolDecision(
+            reasoning=result.reasoning,
+            tool_calls=valid_selections
+        )

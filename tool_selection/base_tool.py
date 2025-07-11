@@ -1,163 +1,137 @@
-"""Base classes and models for the tool registry system using Pydantic."""
-from typing import List, Any, Dict, Type, Optional, ClassVar, get_origin, get_args
-from pydantic import BaseModel, Field, field_validator, create_model, ConfigDict
+"""
+Unified base class for tools using Pydantic with built-in metadata.
+
+This module defines the foundational classes for creating tools that can be
+registered and used within the DSPy framework for multi-tool selection.
+It leverages Pydantic for robust argument validation and clear data modeling.
+"""
+from typing import List, ClassVar, Type, Any, Optional, Dict
+from pydantic import BaseModel, Field
 from abc import ABC, abstractmethod
 
 
 class ToolArgument(BaseModel):
-    """Tool argument with type validation."""
-    name: str
-    type: Any  # Can be any Python type including generics like List[str]
-    description: str
-    required: bool = True
-    default: Any = None
-    constraints: Dict[str, Any] = Field(default_factory=dict)  # For Pydantic field constraints
-    
-    @field_validator('type')
-    @classmethod
-    def validate_type(cls, v):
-        """Ensure type is a valid Python type."""
-        # Check if it's a type or a generic type (like List[str])
-        if not (isinstance(v, type) or hasattr(v, '__origin__')):
-            raise ValueError(f"Invalid type: {v}")
-        return v
-    
-    def to_schema_type(self) -> str:
-        """Convert Python type to schema string representation."""
-        # Handle generic types
-        origin = get_origin(self.type)
-        if origin is list:
-            return "array"
-        elif origin is dict:
-            return "object"
-        
-        # Handle basic types
-        type_map = {
-            str: "string",
-            int: "integer", 
-            float: "number",
-            bool: "boolean",
-            list: "array",
-            dict: "object"
-        }
-        return type_map.get(self.type, "string")
+    """
+    Represents a single argument for a tool.
 
-
-class ToolTestCase(BaseModel):
-    """Test case for tool selection."""
-    request: str
-    expected_tools: List[str]
-    description: str
-
-
-class ToolMetadata(BaseModel):
-    """Tool metadata as a Pydantic model."""
-    model_config = ConfigDict(frozen=True)  # Make metadata immutable
-    
-    name: str
-    description: str
-    category: str
-    arguments: Optional[List[ToolArgument]] = Field(default=None)  # Deprecated - use args_model
-    args_model: Optional[Type[BaseModel]] = None  # New: Pydantic model for arguments
+    This model is used to define the expected inputs for a tool, including
+    its name, type, description, and whether it's required.
+    """
+    name: str = Field(..., pattern="^[a-zA-Z_][a-zA-Z0-9_]*$")  # Valid Python identifier for the argument name
+    type: str = Field(..., description="Python type name (e.g., 'str', 'int', 'float', 'bool', 'List[str]')")
+    description: str = Field(..., min_length=1)  # A clear description of what the argument represents
+    required: bool = Field(default=True)  # Whether the argument is mandatory
+    default: Optional[Any] = None  # Default value if the argument is optional
 
 
 class BaseTool(BaseModel, ABC):
-    """Base class for all tools using Pydantic."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)  # Allow arbitrary types for flexibility
+    """
+    Abstract base class for all tools in the system.
+
+    Tools inherit from this class to provide a unified interface for definition,
+    argument validation, and execution. It integrates with Pydantic for data
+    modeling and validation.
+    """
     
-    # Class-level metadata that must be defined by subclasses
-    metadata: ClassVar[ToolMetadata]
+    # Class-level constants (not Pydantic fields) that must be defined by each concrete tool
+    NAME: ClassVar[str]  # The unique name of the tool (e.g., "search_products")
+    MODULE: ClassVar[str]  # The module/category the tool belongs to (e.g., "ecommerce", "productivity")
     
-    @abstractmethod
-    def execute(self, **kwargs) -> Any:
-        """Execute the tool with given arguments."""
-        pass
+    # Instance fields that define the tool's characteristics
+    description: str = Field(..., min_length=1)  # A brief explanation of what the tool does
+    arguments: List[ToolArgument] = Field(default_factory=list)  # List of arguments the tool accepts
+    
+    # Optional: Pydantic model for more complex argument validation.
+    # If provided, arguments will be validated against this model before execution.
+    args_model: Optional[Type[BaseModel]] = Field(default=None, exclude=True)
+    
+    def __init_subclass__(cls, **kwargs):
+        """
+        Validates that subclasses of BaseTool define the required class variables (NAME, MODULE).
+        Also ensures that the NAME is a valid Python identifier.
+        """
+        super().__init_subclass__(**kwargs)
+        if not hasattr(cls, 'NAME'):
+            raise TypeError(f"{cls.__name__} must define a 'NAME' class variable.")
+        if not hasattr(cls, 'MODULE'):
+            raise TypeError(f"{cls.__name__} must define a 'MODULE' class variable.")
+        # Validate NAME is a valid Python identifier to ensure it can be used programmatically
+        if not cls.NAME.isidentifier():
+            raise ValueError(f"{cls.__name__}.NAME must be a valid Python identifier, got: '{cls.NAME}'.")
+    
+    @property
+    def name(self) -> str:
+        """
+        Returns the unique name of the tool, derived from the class-level NAME constant.
+        """
+        return self.NAME
+    
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Pydantic hook called after model initialization.
+        Auto-populates the 'arguments' list from 'args_model' if 'arguments' is not explicitly provided.
+        """
+        # If no explicit arguments are provided but an args_model is, extract arguments from it
+        if not self.arguments and self.args_model:
+            self.arguments = self._extract_arguments_from_model(self.args_model)
     
     @classmethod
+    def _extract_arguments_from_model(cls, model: Type[BaseModel]) -> List[ToolArgument]:
+        """
+        Extracts a list of ToolArgument objects from a Pydantic BaseModel's schema.
+        This allows tools to define their arguments using a Pydantic model for convenience.
+        """
+        schema = model.model_json_schema()  # Get the JSON schema of the Pydantic model
+        properties = schema.get('properties', {})  # Extract properties (fields)
+        required = schema.get('required', [])  # Get list of required fields
+        
+        arguments = []
+        for field_name, field_info in properties.items():
+            arguments.append(ToolArgument(
+                name=field_name,
+                type=field_info.get('type', 'string'),  # Default to 'string' if type is not specified
+                description=field_info.get('description', ''),
+                required=field_name in required,
+                default=field_info.get('default')
+            ))
+        return arguments
+    
     @abstractmethod
-    def get_test_cases(cls) -> List[ToolTestCase]:
-        """Return test cases for this tool."""
+    def execute(self, **kwargs) -> Dict[str, Any]:
+        """
+        Abstract method that must be implemented by all concrete tool classes.
+        This method contains the core logic of the tool.
+
+        Args:
+            **kwargs: The arguments required for the tool's execution,
+                      which will have been validated by 'args_model' if provided.
+
+        Returns:
+            A dictionary containing the result of the tool's operation.
+        """
         pass
     
-    def to_schema(self) -> Dict[str, Any]:
-        """Convert to MultiTool schema format."""
-        arguments = []
-        
-        # Use args_model if available (new pattern)
-        if self.metadata.args_model:
-            # Extract schema from Pydantic model
-            schema = self.metadata.args_model.model_json_schema()
-            properties = schema.get('properties', {})
-            required_fields = schema.get('required', [])
-            
-            for field_name, field_info in properties.items():
-                arg_schema = {
-                    "name": field_name,
-                    "type": field_info.get('type', 'string'),
-                    "description": field_info.get('description', ''),
-                    "required": field_name in required_fields
-                }
-                if 'default' in field_info:
-                    arg_schema['default'] = field_info['default']
-                arguments.append(arg_schema)
-        
-        # Fall back to old pattern with arguments list
-        elif self.metadata.arguments:
-            arguments = [
-                {
-                    "name": arg.name,
-                    "type": arg.to_schema_type(),
-                    "description": arg.description,
-                    "required": arg.required,
-                    **({"default": arg.default} if arg.default is not None else {})
-                }
-                for arg in self.metadata.arguments
-            ]
-        
-        return {
-            "name": self.metadata.name,
-            "description": self.metadata.description,
-            "arguments": arguments
-        }
-    
-    def validate_and_execute(self, **kwargs) -> Any:
-        """Validate arguments before execution."""
-        # Use args_model if available (new pattern)
-        if self.metadata.args_model:
-            # Validate using the provided Pydantic model
-            validated_args = self.metadata.args_model(**kwargs)
-            # Execute with validated arguments
+    def validate_and_execute(self, **kwargs) -> Dict[str, Any]:
+        """
+        Validates the input arguments using the tool's 'args_model' (if defined)
+        and then executes the tool's logic.
+        """
+        if self.args_model:
+            # Validate arguments using the Pydantic model
+            validated_args = self.args_model(**kwargs)
+            # Execute the tool with the validated and dumped arguments
             return self.execute(**validated_args.model_dump())
-        
-        # Fall back to old pattern with arguments list
-        elif self.metadata.arguments:
-            # Build field definitions for create_model
-            field_definitions = {}
-            for arg in self.metadata.arguments:
-                # Build field kwargs including constraints
-                field_kwargs = {
-                    'description': arg.description,
-                    **arg.constraints  # Include any additional constraints
-                }
-                
-                if arg.default is not None:
-                    field_kwargs['default'] = arg.default
-                elif not arg.required:
-                    field_kwargs['default'] = None
-                    
-                field_definitions[arg.name] = (arg.type, Field(**field_kwargs))
-            
-            # Create dynamic model using create_model
-            DynamicModel = create_model(
-                'DynamicArgs',
-                **field_definitions
-            )
-            
-            # Validate arguments
-            validated_args = DynamicModel(**kwargs)
-            
-            # Execute with validated arguments
-            return self.execute(**validated_args.model_dump())
-        
-        # No validation if no args defined
+        # If no args_model, execute directly with provided arguments
         return self.execute(**kwargs)
+
+
+class ToolTestCase(BaseModel):
+    """
+    Represents a single test case for evaluating tool selection.
+
+    Used to define a user request and the expected tools that should be selected
+    in response to that request.
+    """
+    request: str  # The user's natural language request
+    expected_tools: List[str]  # A list of tool names expected to be selected
+    description: str  # A brief description of the test case
