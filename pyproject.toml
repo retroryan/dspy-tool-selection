@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "demo-dspy"
+version = "0.1.0"
+description = "Simple DSPy tool selection demo with Ollama"
+authors = ["Demo Author"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+dspy = "3.0.0b2"
+pydantic = "^2.5.0"
+python-dotenv = "^1.0.0"
+pandas = "^2.2.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
