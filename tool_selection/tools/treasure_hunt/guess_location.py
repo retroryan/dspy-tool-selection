@@ -2,57 +2,34 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolArgument, ToolTestCase, ToolMetadata
+from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
 from tool_selection.registry import register_tool
-
-
-class GuessLocationArgs(BaseModel):
-    """Argument validation model for guess_location tool."""
-    address: Optional[str] = Field(None, description="The street address guess")
-    city: Optional[str] = Field(None, description="The city guess")
-    state: Optional[str] = Field(None, description="The state guess")
-    
-    def model_post_init(self, __context) -> None:
-        """Ensure at least one field is provided."""
-        super().model_post_init(__context)
-        if not any([self.address, self.city, self.state]):
-            # Set default empty strings if nothing provided
-            self.address = ""
-            self.city = ""
-            self.state = ""
 
 
 @register_tool
 class GuessLocationTool(BaseTool):
     """Tool for guessing the treasure location."""
     
+    class Arguments(BaseModel):
+        """Argument validation model for guess_location tool."""
+        address: Optional[str] = Field(default="", description="The street address guess")
+        city: Optional[str] = Field(default="", description="The city guess")
+        state: Optional[str] = Field(default="", description="The state guess")
+        
+        def model_post_init(self, __context) -> None:
+            """Ensure at least one field is provided."""
+            super().model_post_init(__context)
+            if not any([self.address, self.city, self.state]):
+                # Set default empty strings if nothing provided
+                self.address = ""
+                self.city = ""
+                self.state = ""
+    
     metadata = ToolMetadata(
         name="guess_location",
         description="Guess the treasure location based on address, city, or state",
         category="treasure_hunt",
-        arguments=[
-            ToolArgument(
-                name="address",
-                type=str,
-                description="The street address guess",
-                required=False,
-                default=""
-            ),
-            ToolArgument(
-                name="city",
-                type=str,
-                description="The city guess",
-                required=False,
-                default=""
-            ),
-            ToolArgument(
-                name="state",
-                type=str,
-                description="The state guess",
-                required=False,
-                default=""
-            )
-        ]
+        args_model=Arguments
     )
     
     def execute(self, address: str = "", city: str = "", state: str = "") -> dict:

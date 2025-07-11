@@ -3,9 +3,9 @@ import pytest
 from pydantic import ValidationError
 
 # Import tools to register them
-from tool_selection.tools.treasure_hunt.give_hint import GiveHintTool, GiveHintArgs
-from tool_selection.tools.treasure_hunt.guess_location import GuessLocationTool, GuessLocationArgs
-from tool_selection.tools.productivity.set_reminder import SetReminderTool, SetReminderArgs
+from tool_selection.tools.treasure_hunt.give_hint import GiveHintTool
+from tool_selection.tools.treasure_hunt.guess_location import GuessLocationTool
+from tool_selection.tools.productivity.set_reminder import SetReminderTool
 from tool_selection.registry import registry
 
 
@@ -70,18 +70,18 @@ class TestGiveHintTool:
             registry.execute_tool("give_hint", hint_total=-1)
     
     def test_args_model_validation(self):
-        """Test the GiveHintArgs model directly."""
+        """Test the GiveHintTool.Arguments model directly."""
         # Valid args
-        args = GiveHintArgs(hint_total=2)
+        args = GiveHintTool.Arguments(hint_total=2)
         assert args.hint_total == 2
         
         # Default value
-        args = GiveHintArgs()
+        args = GiveHintTool.Arguments()
         assert args.hint_total == 0
         
         # Invalid negative value
         with pytest.raises(ValidationError):
-            GiveHintArgs(hint_total=-5)
+            GiveHintTool.Arguments(hint_total=-5)
     
     def test_tool_test_cases(self):
         """Test that tool defines appropriate test cases."""
@@ -155,15 +155,15 @@ class TestGuessLocationTool:
         assert "status" in result
     
     def test_args_model_validation(self):
-        """Test the GuessLocationArgs model directly."""
+        """Test the GuessLocationTool.Arguments model directly."""
         # All fields provided
-        args = GuessLocationArgs(address="123 Main", city="Seattle", state="WA")
+        args = GuessLocationTool.Arguments(address="123 Main", city="Seattle", state="WA")
         assert args.address == "123 Main"
         assert args.city == "Seattle"
         assert args.state == "WA"
         
         # No fields provided - should set defaults
-        args = GuessLocationArgs()
+        args = GuessLocationTool.Arguments()
         assert args.address == ""
         assert args.city == ""
         assert args.state == ""
@@ -237,23 +237,23 @@ class TestSetReminderTool:
             )
     
     def test_args_model_validation(self):
-        """Test the SetReminderArgs model directly."""
+        """Test the SetReminderTool.Arguments model directly."""
         # Valid args
-        args = SetReminderArgs(message="Call dentist", time="tomorrow at 9am")
+        args = SetReminderTool.Arguments(message="Call dentist", time="tomorrow at 9am")
         assert args.message == "Call dentist"
         assert args.time == "tomorrow at 9am"
         
         # Empty message should fail
         with pytest.raises(ValidationError):
-            SetReminderArgs(message="", time="2pm")
+            SetReminderTool.Arguments(message="", time="2pm")
         
         # Empty time should fail
         with pytest.raises(ValidationError):
-            SetReminderArgs(message="Test", time="")
+            SetReminderTool.Arguments(message="Test", time="")
         
         # Message too long
         with pytest.raises(ValidationError):
-            SetReminderArgs(message="x" * 501, time="2pm")
+            SetReminderTool.Arguments(message="x" * 501, time="2pm")
     
     def test_tool_test_cases(self):
         """Test that tool defines appropriate test cases."""

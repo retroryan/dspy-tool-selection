@@ -221,6 +221,22 @@ tests/
 
 **Total Test Coverage: 68 tests, all passing**
 
+#### ✅ Completed Enhancement (Step 4.5)
+
+**Simplified Tool Argument Definition**
+- Implemented support for direct Pydantic model usage via `args_model` in ToolMetadata
+- Updated all tools to use inner `Arguments` class instead of dual definition pattern
+- Maintained backward compatibility with `arguments` list for gradual migration
+- Eliminated code duplication and improved developer experience
+- All tests passing with the new simplified pattern
+
+**Migration completed:**
+- `SetReminderTool` now uses `Arguments` inner class
+- `GiveHintTool` now uses `Arguments` inner class  
+- `GuessLocationTool` now uses `Arguments` inner class
+- Removed separate Args classes (SetReminderArgs, GiveHintArgs, GuessLocationArgs)
+- Dynamic model creation via `create_model()` only used for backward compatibility
+
 ### Next Actions
 
 1. Update multi_demo.py to use the new registry system
@@ -229,5 +245,40 @@ tests/
 4. Create integration tests for the complete system
 5. Performance validation and optimization
 
+### Future Recommendations
+
+#### 1. Explicit Tool Registration (Consider for Future)
+
+**Current State:** Tools self-register via `@register_tool` decorator on import, creating global side effects.
+
+**Recommendation:** For larger projects or when import-order issues arise, consider moving to explicit registration:
+
+```python
+# Future pattern for explicit registration
+from tool_selection.registry import ToolRegistry
+from tool_selection.tools import SetReminderTool, GiveHintTool
+
+# Create isolated registry
+registry = ToolRegistry()
+
+# Explicitly register tools
+registry.register(SetReminderTool)
+registry.register(GiveHintTool)
+```
+
+**Benefits:**
+- Eliminates global state
+- Ensures predictable behavior  
+- Enables test isolation
+- Allows multiple independent registries
+
+**When to Implement:**
+- If the project grows significantly beyond a demo
+- If import-order dependencies become problematic
+- If you need multiple registry instances for different contexts
+- If testing becomes difficult due to shared state
+
+**Note:** The current decorator pattern works well for smaller projects and is a common pattern in Python frameworks (Flask, Django). Only implement explicit registration if the complexity is justified.
+
 ---
-*Last Updated: Implementation of Steps 1-4 completed with full test coverage (68 tests)*
+*Last Updated: Implementation of Steps 1-4 completed with simplified argument pattern and full test coverage (68 tests)*

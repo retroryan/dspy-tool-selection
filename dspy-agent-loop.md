@@ -47,7 +47,7 @@ ManualAgentLoop (per invocation):
 
 ## Detailed Component Design
 
-### 1. Tool Selection Module
+### 1. Core Agent Reasoning Module (Hybrid Approach)
 
 ```python
 import dspy
@@ -62,124 +62,94 @@ class ToolCall(BaseModel):
     parameters: Dict[str, Any] = Field(desc="Parameters to pass to the tool")
     reasoning: str = Field(desc="Why this tool is needed for the task")
 
-class ToolSelectionOutput(BaseModel):
-    """Structured output for tool selection decisions."""
-    reasoning: str = Field(desc="Overall reasoning about which tools to use")
-    tool_calls: List[ToolCall] = Field(desc="List of tools to execute with their parameters")
-    parallel_execution: bool = Field(default=True, desc="Whether tools can be executed in parallel")
-
-# DSPy Signature using Pydantic models
-class ToolSelectionSignature(dspy.Signature):
-    """Select tools to execute based on user query and conversation history."""
-    
-    user_query: str = dspy.InputField(desc="The user's request or question")
-    conversation_history: str = dspy.InputField(desc="Previous tool calls and their results in this conversation")
-    available_tools: str = dspy.InputField(desc="JSON array of available tools with their descriptions and parameters")
-    
-    output: ToolSelectionOutput = dspy.OutputField(desc="Tool selection decision with reasoning")
-
-# Custom DSPy Module for Tool Selection
-class ToolSelector(dspy.Module):
-    """Advanced tool selection module with dynamic tool constraints."""
-    
-    def __init__(self, tool_names: List[str] = None):
-        super().__init__()
-        
-        # If tool names provided, create constrained signature
-        if tool_names:
-            # Create a dynamic Literal type for tool names
-            ToolNameLiteral = Literal[tuple(tool_names)]
-            
-            # Create constrained version of ToolCall
-            class ConstrainedToolCall(BaseModel):
-                tool_name: ToolNameLiteral = Field(desc="Name of the tool to execute")
-                parameters: Dict[str, Any] = Field(desc="Parameters to pass to the tool")
-                reasoning: str = Field(desc="Why this tool is needed")
-            
-            # Create constrained output model
-            class ConstrainedToolSelectionOutput(BaseModel):
-                reasoning: str = Field(desc="Overall reasoning about which tools to use")
-                tool_calls: List[ConstrainedToolCall] = Field(desc="List of tools to execute")
-                parallel_execution: bool = Field(default=True, desc="Whether tools can be executed in parallel")
-            
-            # Create constrained signature
-            class ConstrainedToolSelectionSignature(dspy.Signature):
-                """Select tools from a constrained set."""
-                user_query: str = dspy.InputField(desc="The user's request")
-                conversation_history: str = dspy.InputField(desc="Previous interactions")
-                available_tools: str = dspy.InputField(desc="JSON array of available tools")
-                output: ConstrainedToolSelectionOutput = dspy.OutputField(desc="Tool selection decision")
-            
-            self.selector = dspy.ChainOfThought(ConstrainedToolSelectionSignature)
-        else:
-            self.selector = dspy.ChainOfThought(ToolSelectionSignature)
-    
-    def forward(self, user_query: str, conversation_history: str, available_tools: str):
-        """Execute tool selection with enhanced reasoning."""
-        return self.selector(
-            user_query=user_query,
-            conversation_history=conversation_history,
-            available_tools=available_tools
-        )
-```
-
-### 2. Continuation Decision Module
-
-```python
-# Pydantic models for continuation decisions
-class ContinuationDecision(BaseModel):
-    """Decision about whether to continue the agent loop."""
-    should_continue: bool = Field(desc="True if more tools are needed, False if task is complete")
+class ReasoningOutput(BaseModel):
+    """Combined output for reasoning about next steps."""
+    # Overall reasoning
+    overall_reasoning: str = Field(desc="High-level reasoning about the current state and next steps")
     confidence: float = Field(ge=0, le=1, desc="Confidence in the decision (0-1)")
-    reasoning: str = Field(desc="Detailed reasoning about the decision")
     
-    # Conditional fields based on decision
-    next_action: Optional[str] = Field(None, desc="What to do next if continuing")
-    missing_information: Optional[List[str]] = Field(None, desc="What information is still needed")
+    # Tool selection
+    should_use_tools: bool = Field(desc="Whether tools should be called in this iteration")
+    tool_calls: Optional[List[ToolCall]] = Field(None, desc="List of tools to execute if should_use_tools is True")
+    parallel_safe: bool = Field(default=True, desc="Whether suggested tools can be executed in parallel")
+    
+    # Continuation decision
+    should_continue: bool = Field(desc="Whether to continue after this iteration")
+    continuation_reasoning: str = Field(desc="Specific reasoning about whether to continue or stop")
+    
+    # Final response (if not continuing)
     final_response: Optional[str] = Field(None, desc="Final response to user if not continuing")
+    suggested_next_action: Optional[str] = Field(None, desc="Hint about what might be needed next if continuing")
 
-class ContinuationSignature(dspy.Signature):
-    """Analyze results and decide whether to continue with more tool calls."""
+class AgentReasonerSignature(dspy.Signature):
+    """Unified reasoning about tools and continuation in a single step."""
     
-    user_query: str = dspy.InputField(desc="The original user request")
-    conversation_history: str = dspy.InputField(desc="Complete history of tool calls and results")
-    last_tool_results: str = dspy.InputField(desc="Results from the most recent tool executions")
+    user_query: str = dspy.InputField(desc="The user's original request")
+    conversation_history: str = dspy.InputField(desc="Previous tool calls and their results")
+    last_tool_results: Optional[str] = dspy.InputField(desc="Results from the most recent tool executions, if any")
+    available_tools: str = dspy.InputField(desc="JSON array of available tools and their descriptions")
     iteration_count: int = dspy.InputField(desc="Current iteration number")
+    max_iterations: int = dspy.InputField(desc="Maximum allowed iterations")
     
-    decision: ContinuationDecision = dspy.OutputField(desc="Decision about continuation with detailed reasoning")
+    reasoning_output: ReasoningOutput = dspy.OutputField(desc="Combined reasoning and decision output")
 
-# Custom module for continuation decisions with history awareness
-class ContinuationDecider(dspy.Module):
-    """Makes informed decisions about whether to continue the agent loop."""
+class AgentReasoner(dspy.Module):
+    """Core reasoning module that handles both tool selection and continuation decisions."""
     
-    def __init__(self, max_iterations: int = 5):
+    def __init__(self, tool_names: List[str], max_iterations: int = 5):
         super().__init__()
+        self.tool_names = tool_names
         self.max_iterations = max_iterations
-        self.decider = dspy.ChainOfThought(ContinuationSignature)
         
-        # Optional: Add a summarizer for long conversations
-        self.summarizer = dspy.Predict("long_history -> summary")
+        # Main reasoning with Chain of Thought for complex decisions
+        self.reasoner = dspy.ChainOfThought(AgentReasonerSignature)
+        
+        # Optional: Validate reasoning output consistency
+        self.output_validator = dspy.Predict(
+            "reasoning_output -> is_valid:bool, validation_issues:list[str]"
+        )
+        
+        # History summarizer for long conversations
+        self.history_summarizer = dspy.Predict(
+            "long_history -> summary:str, key_points:list[str]"
+        )
     
     def forward(self, user_query: str, conversation_history: str, 
-                last_tool_results: str, iteration_count: int):
-        """Make continuation decision with context awareness."""
+                last_tool_results: Optional[str], available_tools: str, 
+                iteration_count: int) -> dspy.Prediction:
+        """Execute unified reasoning about next action."""
         
-        # Summarize if history is too long
+        # Summarize history if too long
         if len(conversation_history) > 3000:
-            summary = self.summarizer(long_history=conversation_history).summary
-            conversation_history = f"[Summarized history]: {summary}\n\n[Recent]: {conversation_history[-1000:]}"
+            summary_result = self.history_summarizer(long_history=conversation_history)
+            conversation_history = (
+                f"[Summarized earlier history]: {summary_result.summary}\n"
+                f"Key points: {', '.join(summary_result.key_points)}\n\n"
+                f"[Recent history]: {conversation_history[-1500:]}"
+            )
         
-        # Check if we're approaching iteration limit
-        if iteration_count >= self.max_iterations - 1:
-            conversation_history += f"\n\nNOTE: This is iteration {iteration_count} of {self.max_iterations} maximum."
-        
-        return self.decider(
+        # Main reasoning
+        result = self.reasoner(
             user_query=user_query,
             conversation_history=conversation_history,
-            last_tool_results=last_tool_results,
-            iteration_count=iteration_count
+            last_tool_results=last_tool_results or "No previous tool results",
+            available_tools=available_tools,
+            iteration_count=iteration_count,
+            max_iterations=self.max_iterations
         )
+        
+        # Optional: Validate output consistency
+        if hasattr(self, 'output_validator'):
+            validation = self.output_validator(reasoning_output=result.reasoning_output)
+            if not validation.is_valid:
+                # Log validation issues but don't fail
+                # In production, you might want to retry or handle differently
+                pass
+        
+        return result
 ```
+
+### 2. Specialized Error Recovery Module (Remains Separate)
 
 ### 3. Stateless Agent Loop for External Control
 

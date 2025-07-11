@@ -3,54 +3,40 @@ from typing import List
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
-from tool_selection.base_tool import BaseTool, ToolArgument, ToolTestCase, ToolMetadata
+from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
 from tool_selection.registry import register_tool
-
-
-class SetReminderArgs(BaseModel):
-    """Argument validation model for set_reminder tool."""
-    message: str = Field(
-        ..., 
-        min_length=1, 
-        max_length=500,
-        description="The reminder message"
-    )
-    time: str = Field(
-        ..., 
-        description="When to remind (e.g., '2pm', 'tomorrow', 'in 30 minutes')"
-    )
-    
-    @field_validator('time')
-    @classmethod
-    def validate_time(cls, v: str) -> str:
-        """Basic validation that time is not empty."""
-        if not v.strip():
-            raise ValueError("Time cannot be empty")
-        return v.strip()
 
 
 @register_tool
 class SetReminderTool(BaseTool):
     """Tool for setting reminders."""
     
+    class Arguments(BaseModel):
+        """Argument validation model for set_reminder tool."""
+        message: str = Field(
+            ..., 
+            min_length=1, 
+            max_length=500,
+            description="The reminder message"
+        )
+        time: str = Field(
+            ..., 
+            description="When to remind (e.g., '2pm', 'tomorrow', 'in 30 minutes')"
+        )
+        
+        @field_validator('time')
+        @classmethod
+        def validate_time(cls, v: str) -> str:
+            """Basic validation that time is not empty."""
+            if not v.strip():
+                raise ValueError("Time cannot be empty")
+            return v.strip()
+    
     metadata = ToolMetadata(
         name="set_reminder",
         description="Set a reminder for a specific time",
         category="productivity",
-        arguments=[
-            ToolArgument(
-                name="message",
-                type=str,
-                description="The reminder message (1-500 characters)",
-                constraints={"min_length": 1, "max_length": 500}
-            ),
-            ToolArgument(
-                name="time",
-                type=str,
-                description="When to remind (e.g., '2pm', 'tomorrow', 'in 30 minutes')",
-                constraints={"min_length": 1}
-            )
-        ]
+        args_model=Arguments
     )
     
     def execute(self, message: str, time: str) -> dict:

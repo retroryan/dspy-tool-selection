@@ -57,7 +57,8 @@ class ToolMetadata(BaseModel):
     name: str
     description: str
     category: str
-    arguments: List[ToolArgument] = Field(default_factory=list)
+    arguments: Optional[List[ToolArgument]] = Field(default=None)  # Deprecated - use args_model
+    args_model: Optional[Type[BaseModel]] = None  # New: Pydantic model for arguments
 
 
 class BaseTool(BaseModel, ABC):
@@ -80,10 +81,29 @@ class BaseTool(BaseModel, ABC):
     
     def to_schema(self) -> Dict[str, Any]:
         """Convert to MultiTool schema format."""
-        return {
-            "name": self.metadata.name,
-            "description": self.metadata.description,
-            "arguments": [
+        arguments = []
+        
+        # Use args_model if available (new pattern)
+        if self.metadata.args_model:
+            # Extract schema from Pydantic model
+            schema = self.metadata.args_model.model_json_schema()
+            properties = schema.get('properties', {})
+            required_fields = schema.get('required', [])
+            
+            for field_name, field_info in properties.items():
+                arg_schema = {
+                    "name": field_name,
+                    "type": field_info.get('type', 'string'),
+                    "description": field_info.get('description', ''),
+                    "required": field_name in required_fields
+                }
+                if 'default' in field_info:
+                    arg_schema['default'] = field_info['default']
+                arguments.append(arg_schema)
+        
+        # Fall back to old pattern with arguments list
+        elif self.metadata.arguments:
+            arguments = [
                 {
                     "name": arg.name,
                     "type": arg.to_schema_type(),
@@ -93,34 +113,51 @@ class BaseTool(BaseModel, ABC):
                 }
                 for arg in self.metadata.arguments
             ]
+        
+        return {
+            "name": self.metadata.name,
+            "description": self.metadata.description,
+            "arguments": arguments
         }
     
     def validate_and_execute(self, **kwargs) -> Any:
         """Validate arguments before execution."""
-        # Build field definitions for create_model
-        field_definitions = {}
-        for arg in self.metadata.arguments:
-            # Build field kwargs including constraints
-            field_kwargs = {
-                'description': arg.description,
-                **arg.constraints  # Include any additional constraints
-            }
-            
-            if arg.default is not None:
-                field_kwargs['default'] = arg.default
-            elif not arg.required:
-                field_kwargs['default'] = None
+        # Use args_model if available (new pattern)
+        if self.metadata.args_model:
+            # Validate using the provided Pydantic model
+            validated_args = self.metadata.args_model(**kwargs)
+            # Execute with validated arguments
+            return self.execute(**validated_args.model_dump())
+        
+        # Fall back to old pattern with arguments list
+        elif self.metadata.arguments:
+            # Build field definitions for create_model
+            field_definitions = {}
+            for arg in self.metadata.arguments:
+                # Build field kwargs including constraints
+                field_kwargs = {
+                    'description': arg.description,
+                    **arg.constraints  # Include any additional constraints
+                }
                 
-            field_definitions[arg.name] = (arg.type, Field(**field_kwargs))
+                if arg.default is not None:
+                    field_kwargs['default'] = arg.default
+                elif not arg.required:
+                    field_kwargs['default'] = None
+                    
+                field_definitions[arg.name] = (arg.type, Field(**field_kwargs))
+            
+            # Create dynamic model using create_model
+            DynamicModel = create_model(
+                'DynamicArgs',
+                **field_definitions
+            )
+            
+            # Validate arguments
+            validated_args = DynamicModel(**kwargs)
+            
+            # Execute with validated arguments
+            return self.execute(**validated_args.model_dump())
         
-        # Create dynamic model using create_model
-        DynamicModel = create_model(
-            'DynamicArgs',
-            **field_definitions
-        )
-        
-        # Validate arguments
-        validated_args = DynamicModel(**kwargs)
-        
-        # Execute with validated arguments
-        return self.execute(**validated_args.model_dump())
+        # No validation if no args defined
+        return self.execute(**kwargs)

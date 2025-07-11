@@ -2,37 +2,27 @@
 from typing import List
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolArgument, ToolTestCase, ToolMetadata
+from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
 from tool_selection.registry import register_tool
-
-
-class GiveHintArgs(BaseModel):
-    """Argument validation model for give_hint tool."""
-    hint_total: int = Field(
-        default=0, 
-        ge=0, 
-        description="The total number of hints already given"
-    )
 
 
 @register_tool
 class GiveHintTool(BaseTool):
     """Tool for giving progressive hints about the treasure location."""
     
+    class Arguments(BaseModel):
+        """Argument validation model for give_hint tool."""
+        hint_total: int = Field(
+            default=0, 
+            ge=0, 
+            description="The total number of hints already given"
+        )
+    
     metadata = ToolMetadata(
         name="give_hint",
         description="Give a progressive hint about the treasure location",
         category="treasure_hunt",
-        arguments=[
-            ToolArgument(
-                name="hint_total",
-                type=int,
-                description="The total number of hints already given",
-                required=False,
-                default=0,
-                constraints={"ge": 0}  # Greater than or equal to 0
-            )
-        ]
+        args_model=Arguments
     )
     
     def execute(self, hint_total: int = 0) -> dict:
