@@ -3,9 +3,9 @@ import pytest
 from pydantic import ValidationError
 
 # Import tools to register them
-from tool_selection.tools.treasure_hunt.give_hint import GiveHintTool
-from tool_selection.tools.treasure_hunt.guess_location import GuessLocationTool
-from tool_selection.tools.productivity.set_reminder import SetReminderTool
+from tools.treasure_hunt.give_hint import GiveHintTool
+from tools.treasure_hunt.guess_location import GuessLocationTool
+from tools.productivity.set_reminder import SetReminderTool
 from tool_selection.registry import registry
 
 

@@ -9,6 +9,7 @@ echo ""
 # Parse command line arguments
 DEBUG_MODE=false
 PREDICT_MODE=""
+TOOL_SET=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -25,7 +26,12 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 [OPTIONS]"
+            echo "Usage: $0 [TOOL_SET] [OPTIONS]"
+            echo ""
+            echo "Arguments:"
+            echo "  TOOL_SET             Tool set to load (default: productivity)"
+            echo "                       Available: treasure_hunt, productivity, events,"
+            echo "                                 ecommerce, finance, multi_domain"
             echo ""
             echo "Options:"
             echo "  --debug              Enable debug mode (show prompts and LLM responses)"
@@ -35,16 +41,27 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help           Show this help message"
             echo ""
             echo "Examples:"
-            echo "  ./run_demo.sh                    # Default: Chain of Thought mode"
-            echo "  ./run_demo.sh --debug            # Chain of Thought with debug output"
-            echo "  ./run_demo.sh --predict          # Predict mode"
-            echo "  ./run_demo.sh --predict --debug  # Predict mode with debug output"
+            echo "  ./run_demo.sh                    # Default: productivity tool set with CoT"
+            echo "  ./run_demo.sh treasure_hunt      # Treasure hunt tool set"
+            echo "  ./run_demo.sh productivity --debug  # Productivity tools with debug"
+            echo "  ./run_demo.sh finance --predict  # Finance tools with Predict mode"
             exit 0
             ;;
-        *)
+        --*)
             echo "Unknown option: $1"
             echo "Use --help for usage information"
             exit 1
+            ;;
+        *)
+            # This is the tool set argument
+            if [ -z "$TOOL_SET" ]; then
+                TOOL_SET="$1"
+            else
+                echo "Error: Multiple tool sets specified"
+                echo "Use --help for usage information"
+                exit 1
+            fi
+            shift
             ;;
     esac
 done
@@ -87,8 +104,24 @@ fi
 
 # Run the demo
 echo "🚀 Running demo..."
+if [ -n "$TOOL_SET" ]; then
+    echo "📦 Tool set: $TOOL_SET"
+else
+    echo "📦 Tool set: productivity (default)"
+fi
 echo ""
-poetry run python -m tool_selection.multi_demo
+
+# Build command
+CMD="poetry run python -m tool_selection.multi_demo"
+if [ -n "$TOOL_SET" ]; then
+    CMD="$CMD $TOOL_SET"
+fi
+if [ "$PREDICT_MODE" = "predict" ]; then
+    CMD="$CMD --predict"
+fi
+
+# Execute command
+$CMD
 
 if [ "$DEBUG_MODE" = true ]; then
     echo ""

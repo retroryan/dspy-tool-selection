@@ -151,7 +151,112 @@ class AgentReasoner(dspy.Module):
 
 ### 2. Specialized Error Recovery Module (Remains Separate)
 
-### 3. Stateless Agent Loop for External Control
+```python
+class ErrorRecoveryStrategy(BaseModel):
+    """Strategy for recovering from tool errors."""
+    strategy_type: Literal["retry", "alternative_tool", "skip", "fail"]
+    details: str
+    alternative_tool: Optional[str] = None
+    retry_with_params: Optional[Dict[str, Any]] = None
+    can_recover: bool = Field(default=True)
+
+class ErrorRecoverySignature(dspy.Signature):
+    """Analyze error and suggest recovery strategy."""
+    
+    error_message: str = dspy.InputField(desc="The error message from failed tool")
+    error_type: str = dspy.InputField(desc="Type of error (e.g., ValueError)")
+    failed_tool: str = dspy.InputField(desc="Name of the tool that failed")
+    tool_parameters: str = dspy.InputField(desc="Parameters that caused the error")
+    user_query: str = dspy.InputField(desc="Original user request for context")
+    available_tools: str = dspy.InputField(desc="List of available alternative tools")
+    previous_attempts: str = dspy.InputField(desc="History of previous recovery attempts")
+    
+    recovery_strategy: ErrorRecoveryStrategy = dspy.OutputField(desc="Recommended recovery approach")
+
+class ErrorRecoveryModule(dspy.Module):
+    """Specialized module for error recovery strategies."""
+    
+    def __init__(self, recovery_strategies: List[str] = None):
+        super().__init__()
+        self.strategies = recovery_strategies or ["retry", "alternative_tool", "graceful_degradation"]
+        self.recovery_planner = dspy.ChainOfThought(ErrorRecoverySignature)
+    
+    def forward(self, error_info: Dict[str, Any], context: ConversationState,
+                available_tools: List[str]) -> ErrorRecoveryStrategy:
+        """Generate recovery strategy for tool errors."""
+        
+        # Format previous attempts
+        previous_attempts = self._format_previous_attempts(context.errors_encountered)
+        
+        result = self.recovery_planner(
+            error_message=str(error_info.get("error", "")),
+            error_type=error_info.get("error_type", "Unknown"),
+            failed_tool=error_info.get("tool_name", ""),
+            tool_parameters=json.dumps(error_info.get("parameters", {})),
+            user_query=context.user_query,
+            available_tools=json.dumps(available_tools),
+            previous_attempts=previous_attempts
+        )
+        
+        return result.recovery_strategy
+```
+
+### 3. Response Formatting Module (Optional)
+
+```python
+class ResponseFormatter(dspy.Module):
+    """Format final responses based on context and style requirements."""
+    
+    def __init__(self, style_guide: str = "concise", include_confidence: bool = False):
+        super().__init__()
+        self.style_guide = style_guide
+        self.include_confidence = include_confidence
+        
+        # Different formatters for different styles
+        if style_guide == "detailed":
+            self.formatter = dspy.ChainOfThought(
+                "raw_response, user_query, key_results, tool_history -> formatted_response, summary_points"
+            )
+        else:
+            self.formatter = dspy.Predict(
+                "raw_response, user_query, key_results -> formatted_response"
+            )
+    
+    def forward(self, raw_response: str, user_query: str, 
+                state: ConversationState) -> str:
+        """Format response based on style guide."""
+        
+        # Extract key results from conversation history
+        key_results = self._extract_key_results(state.conversation_history)
+        
+        if self.style_guide == "detailed":
+            result = self.formatter(
+                raw_response=raw_response,
+                user_query=user_query,
+                key_results=json.dumps(key_results),
+                tool_history=self._format_tool_history(state.conversation_history)
+            )
+            
+            formatted = f"{result.formatted_response}\n\n"
+            if hasattr(result, 'summary_points'):
+                formatted += "Key Points:\n"
+                for point in result.summary_points:
+                    formatted += f"• {point}\n"
+                    
+            if self.include_confidence and state.last_confidence:
+                formatted += f"\nConfidence: {state.last_confidence:.0%}"
+                
+            return formatted
+        else:
+            result = self.formatter(
+                raw_response=raw_response,
+                user_query=user_query,
+                key_results=json.dumps(key_results)
+            )
+            return result.formatted_response
+```
+
+### 4. Stateless Agent Loop for External Control
 
 ```python
 import json
@@ -201,24 +306,33 @@ class ConversationState(BaseModel):
     start_time: Optional[float] = None
 
 class ManualAgentLoop(dspy.Module):
-    """Stateless agent loop designed for external control by ActivityManager."""
+    """Stateless agent loop designed for external control by ActivityManager.
     
-    def __init__(self, tool_registry, enable_error_recovery: bool = True):
+    Uses a hybrid approach with consolidated reasoning for tool selection and
+    continuation decisions, while keeping error recovery and formatting separate.
+    """
+    
+    def __init__(self, tool_registry, enable_error_recovery: bool = True,
+                 response_style: str = "concise"):
         super().__init__()
         self.tool_registry = tool_registry
         self.enable_error_recovery = enable_error_recovery
         
-        # Initialize DSPy modules
+        # Core reasoning module (hybrid approach)
         tool_names = list(tool_registry.get_all_tool_names())
-        self.tool_selector = ToolSelector(tool_names=tool_names)
-        self.continuation_decider = ContinuationDecider()
+        self.agent_reasoner = AgentReasoner(
+            tool_names=tool_names,
+            max_iterations=10  # Default max, can be overridden by ActivityManager
+        )
         
-        # Optional modules
+        # Specialized modules (kept separate for flexibility)
         if enable_error_recovery:
-            self.error_handler = ErrorHandler()
+            self.error_recovery = ErrorRecoveryModule()
         
-        self.response_generator = dspy.ChainOfThought(
-            "user_query, conversation_summary, key_findings -> final_response"
+        # Optional response formatter
+        self.response_formatter = ResponseFormatter(
+            style_guide=response_style,
+            include_confidence=True
         )
     
     def get_next_action(self, state: ConversationState) -> ActionDecision:
@@ -230,33 +344,62 @@ class ManualAgentLoop(dspy.Module):
         start_time = time.time()
         
         try:
-            # Analyze current situation
+            # Handle errors from previous tool execution if any
             if state.last_tool_results and any(r.get("status") == "error" for r in state.last_tool_results):
-                # Handle errors from previous tool execution
-                return self._handle_tool_errors(state)
+                if self.enable_error_recovery:
+                    return self._handle_tool_errors(state)
+                # Without error recovery, continue to main reasoning
             
-            # Check if we should generate final response
-            if state.iteration_count > 0:
-                decision = self._should_continue(state)
-                if not decision.should_continue:
-                    return self._create_final_response_action(state, decision)
+            # Main reasoning - unified tool selection and continuation decision
+            reasoning_result = self._perform_core_reasoning(state)
+            reasoning_output = reasoning_result.reasoning_output
             
-            # Select next tools to execute
-            tool_decision = self._select_next_tools(state)
+            # Store confidence for potential formatting
+            state.last_confidence = reasoning_output.confidence
             
-            # Create action decision
-            action = ActionDecision(
-                action_type=ActionType.TOOL_EXECUTION,
-                reasoning=tool_decision.reasoning,
-                confidence=tool_decision.confidence,
-                tool_suggestions=tool_decision.tool_calls,
-                parallel_safe=tool_decision.parallel_execution,
-                should_continue=True,
-                suggested_next_action=tool_decision.next_action_hint,
-                processing_time=time.time() - start_time
-            )
+            # Convert reasoning output to action decision
+            if not reasoning_output.should_continue:
+                # Generate final response
+                final_response = reasoning_output.final_response
+                if final_response and self.response_formatter:
+                    final_response = self.response_formatter(
+                        raw_response=final_response,
+                        user_query=state.user_query,
+                        state=state
+                    )
+                
+                return ActionDecision(
+                    action_type=ActionType.FINAL_RESPONSE,
+                    reasoning=reasoning_output.continuation_reasoning,
+                    confidence=reasoning_output.confidence,
+                    should_continue=False,
+                    final_response=final_response,
+                    processing_time=time.time() - start_time
+                )
             
-            return action
+            elif reasoning_output.should_use_tools:
+                # Return tool execution suggestion
+                return ActionDecision(
+                    action_type=ActionType.TOOL_EXECUTION,
+                    reasoning=reasoning_output.overall_reasoning,
+                    confidence=reasoning_output.confidence,
+                    tool_suggestions=reasoning_output.tool_calls,
+                    parallel_safe=reasoning_output.parallel_safe,
+                    should_continue=True,
+                    suggested_next_action=reasoning_output.suggested_next_action,
+                    processing_time=time.time() - start_time
+                )
+            
+            else:
+                # Edge case: continue but no tools suggested
+                return ActionDecision(
+                    action_type=ActionType.TOOL_EXECUTION,
+                    reasoning="Need more information but no specific tools identified",
+                    confidence=0.5,
+                    tool_suggestions=[],
+                    should_continue=True,
+                    processing_time=time.time() - start_time
+                )
             
         except Exception as e:
             # Return error recovery action
@@ -273,98 +416,112 @@ class ManualAgentLoop(dspy.Module):
         """DSPy-compatible forward method that delegates to get_next_action."""
         return self.get_next_action(state)
     
-    def _select_next_tools(self, state: ConversationState) -> ToolSelectionOutput:
-        """Select next tools to execute based on current state."""
-        # Format conversation history
+    def _perform_core_reasoning(self, state: ConversationState) -> dspy.Prediction:
+        """Perform unified reasoning about tools and continuation."""
+        # Format inputs for reasoning
         history = self._format_conversation_history(state.conversation_history)
+        last_results = self._format_tool_results(state.last_tool_results) if state.last_tool_results else None
+        available_tools = self._format_tool_descriptions()
         
-        # Format available tools
-        tool_descriptions = self._format_tool_descriptions()
-        
-        # Add last tool results to history if available
-        if state.last_tool_results:
-            results_summary = self._format_tool_results(state.last_tool_results)
-            history += f"\n\nLast tool results:\n{results_summary}"
-        
-        # Get tool selection
-        selection_result = self.tool_selector(
+        # Use the unified reasoner
+        return self.agent_reasoner(
             user_query=state.user_query,
             conversation_history=history,
-            available_tools=tool_descriptions
-        )
-        
-        # Enhance with additional metadata
-        output = selection_result.output
-        output.confidence = self._calculate_confidence(output, state)
-        output.next_action_hint = self._generate_next_action_hint(output, state)
-        
-        return output
-    
-    def _should_continue(self, state: ConversationState) -> ContinuationDecision:
-        """Decide if we should continue or provide final response."""
-        history = self._format_conversation_history(state.conversation_history)
-        results = self._format_tool_results(state.last_tool_results or [])
-        
-        decision = self.continuation_decider(
-            user_query=state.user_query,
-            conversation_history=history,
-            last_tool_results=results,
+            last_tool_results=last_results,
+            available_tools=available_tools,
             iteration_count=state.iteration_count
         )
-        
-        return decision.decision
     
     def _handle_tool_errors(self, state: ConversationState) -> ActionDecision:
-        """Handle errors from previous tool execution."""
-        if not self.enable_error_recovery:
-            # Without error recovery, suggest final response
-            return ActionDecision(
-                action_type=ActionType.FINAL_RESPONSE,
-                reasoning="Tool execution failed, providing best available response",
-                confidence=0.6,
-                should_continue=False,
-                final_response=self._generate_error_response(state)
-            )
+        """Handle errors from previous tool execution using specialized error recovery module."""
+        start_time = time.time()
         
-        # Analyze errors and suggest recovery
+        # Extract error information
         failed_tools = [r for r in state.last_tool_results if r.get("status") == "error"]
-        recovery_suggestions = []
         
-        for failed in failed_tools:
-            recovery = self.error_handler(
-                error_info=failed,
-                user_query=state.user_query,
+        if not failed_tools:
+            # No actual errors, continue with normal reasoning
+            return self.get_next_action(state)
+        
+        # Process each error through recovery module
+        recovery_actions = []
+        for error_info in failed_tools:
+            recovery_strategy = self.error_recovery(
+                error_info=error_info,
+                context=state,
                 available_tools=list(self.tool_registry.get_all_tool_names())
             )
-            recovery_suggestions.append(recovery)
-        
-        # Create recovery action
-        if any(r.strategy_type == "alternative_tool" for r in recovery_suggestions):
-            # Suggest alternative tools
-            alt_tools = []
-            for recovery in recovery_suggestions:
-                if recovery.strategy_type == "alternative_tool" and recovery.alternative_tool:
-                    alt_tools.append(ToolCall(
-                        tool_name=recovery.alternative_tool,
-                        parameters={},  # Parameters need adjustment
-                        reasoning=recovery.details
-                    ))
             
-            return ActionDecision(
-                action_type=ActionType.TOOL_EXECUTION,
-                reasoning="Attempting recovery with alternative tools",
-                confidence=0.7,
-                tool_suggestions=alt_tools,
-                should_continue=True
+            if recovery_strategy.can_recover:
+                recovery_actions.append(recovery_strategy)
+        
+        # Determine best recovery approach
+        if recovery_actions:
+            # Prioritize alternative tool strategies
+            alt_tool_strategies = [r for r in recovery_actions if r.strategy_type == "alternative_tool"]
+            retry_strategies = [r for r in recovery_actions if r.strategy_type == "retry"]
+            
+            if alt_tool_strategies:
+                # Create tool calls for alternatives
+                tool_calls = []
+                for strategy in alt_tool_strategies:
+                    if strategy.alternative_tool:
+                        tool_calls.append(ToolCall(
+                            tool_name=strategy.alternative_tool,
+                            parameters=strategy.retry_with_params or {},
+                            reasoning=strategy.details
+                        ))
+                
+                return ActionDecision(
+                    action_type=ActionType.TOOL_EXECUTION,
+                    reasoning="Attempting recovery with alternative tools",
+                    confidence=0.7,
+                    tool_suggestions=tool_calls,
+                    parallel_safe=False,  # Recovery tools should run sequentially
+                    should_continue=True,
+                    processing_time=time.time() - start_time
+                )
+            
+            elif retry_strategies:
+                # Retry with modified parameters
+                tool_calls = []
+                for strategy in retry_strategies:
+                    # Find original tool call info
+                    original_error = next(e for e in failed_tools if any(r == strategy for r in recovery_actions))
+                    tool_calls.append(ToolCall(
+                        tool_name=original_error["tool_name"],
+                        parameters=strategy.retry_with_params or original_error.get("parameters", {}),
+                        reasoning=f"Retry: {strategy.details}"
+                    ))
+                
+                return ActionDecision(
+                    action_type=ActionType.TOOL_EXECUTION,
+                    reasoning="Retrying failed tools with adjusted parameters",
+                    confidence=0.6,
+                    tool_suggestions=tool_calls,
+                    parallel_safe=False,
+                    should_continue=True,
+                    processing_time=time.time() - start_time
+                )
+        
+        # No recovery possible, generate graceful error response
+        error_summary = self._summarize_errors(failed_tools)
+        final_response = self._generate_error_aware_response(state, error_summary)
+        
+        if self.response_formatter:
+            final_response = self.response_formatter(
+                raw_response=final_response,
+                user_query=state.user_query,
+                state=state
             )
         
-        # No recovery possible, suggest final response
         return ActionDecision(
             action_type=ActionType.FINAL_RESPONSE,
-            reasoning="Unable to recover from errors",
+            reasoning=f"Unable to recover from errors: {error_summary}",
             confidence=0.5,
             should_continue=False,
-            final_response=self._generate_error_response(state)
+            final_response=final_response,
+            processing_time=time.time() - start_time
         )
     
     def _create_final_response_action(self, state: ConversationState, 
@@ -752,137 +909,6 @@ class ConversationManager:
         return "\n\n".join(formatted)
 ```
 
-### 7. Advanced Error Handling
-
-```python
-class ErrorRecoveryStrategy(BaseModel):
-    """Strategy for recovering from tool errors."""
-    strategy_type: Literal["retry", "alternative_tool", "skip", "fail"]
-    details: str
-    alternative_tool: Optional[str] = None
-    retry_with_params: Optional[Dict[str, Any]] = None
-
-class ErrorHandler(dspy.Module):
-    """Advanced error handling with recovery strategies."""
-    
-    def __init__(self):
-        super().__init__()
-        
-        # Signature for error analysis
-        class ErrorAnalysisSignature(dspy.Signature):
-            """Analyze error and suggest recovery strategy."""
-            error_message: str = dspy.InputField(desc="The error message")
-            error_type: str = dspy.InputField(desc="Type of error (e.g., ValueError)")
-            failed_tool: str = dspy.InputField(desc="Name of the tool that failed")
-            tool_parameters: str = dspy.InputField(desc="Parameters that caused the error")
-            user_query: str = dspy.InputField(desc="Original user request")
-            available_tools: str = dspy.InputField(desc="List of available tools")
-            
-            recovery: ErrorRecoveryStrategy = dspy.OutputField(desc="Recovery strategy")
-        
-        self.analyzer = dspy.ChainOfThought(ErrorAnalysisSignature)
-    
-    def forward(self, error_info: Dict[str, Any], user_query: str, 
-                available_tools: List[str]) -> ErrorRecoveryStrategy:
-        """Analyze error and suggest recovery."""
-        
-        result = self.analyzer(
-            error_message=str(error_info["error"]),
-            error_type=error_info.get("error_type", "Unknown"),
-            failed_tool=error_info["tool_name"],
-            tool_parameters=json.dumps(error_info.get("parameters", {})),
-            user_query=user_query,
-            available_tools=json.dumps(available_tools)
-        )
-        
-        return result.recovery
-    
-    def apply_recovery(self, strategy: ErrorRecoveryStrategy, 
-                      original_call: ToolCall) -> Optional[ToolCall]:
-        """Apply recovery strategy to create new tool call."""
-        
-        if strategy.strategy_type == "retry":
-            # Retry with modified parameters
-            new_call = ToolCall(
-                tool_name=original_call.tool_name,
-                parameters=strategy.retry_with_params or original_call.parameters,
-                reasoning=f"Retrying after error: {strategy.details}"
-            )
-            return new_call
-        
-        elif strategy.strategy_type == "alternative_tool":
-            # Use alternative tool
-            if strategy.alternative_tool:
-                new_call = ToolCall(
-                    tool_name=strategy.alternative_tool,
-                    parameters=original_call.parameters,  # May need adjustment
-                    reasoning=f"Using alternative tool: {strategy.details}"
-                )
-                return new_call
-        
-        # For "skip" or "fail", return None
-        return None
-```
-
-### 8. Performance Optimizations
-
-```python
-class CachedToolExecutor:
-    """Tool executor with caching for repeated calls."""
-    
-    def __init__(self, cache_size: int = 100):
-        self.cache = {}
-        self.cache_order = []
-        self.cache_size = cache_size
-    
-    def _get_cache_key(self, tool_name: str, parameters: Dict[str, Any]) -> str:
-        """Generate cache key from tool call."""
-        # Sort parameters for consistent keys
-        param_str = json.dumps(parameters, sort_keys=True)
-        return f"{tool_name}:{hashlib.md5(param_str.encode()).hexdigest()}"
-    
-    def execute_with_cache(self, tool_func: callable, tool_name: str, 
-                          parameters: Dict[str, Any]) -> Any:
-        """Execute tool with caching."""
-        cache_key = self._get_cache_key(tool_name, parameters)
-        
-        # Check cache
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        # Execute tool
-        result = tool_func(**parameters)
-        
-        # Update cache
-        self.cache[cache_key] = result
-        self.cache_order.append(cache_key)
-        
-        # Evict old entries if needed
-        if len(self.cache_order) > self.cache_size:
-            old_key = self.cache_order.pop(0)
-            del self.cache[old_key]
-        
-        return result
-
-class BatchToolSelector(dspy.Module):
-    """Optimized tool selector that can suggest multiple iterations at once."""
-    
-    def __init__(self):
-        super().__init__()
-        
-        class BatchSelectionSignature(dspy.Signature):
-            """Plan multiple tool calls across iterations."""
-            user_query: str = dspy.InputField()
-            available_tools: str = dspy.InputField()
-            
-            plan: str = dspy.OutputField(desc="Multi-step plan")
-            iterations: List[ToolSelectionOutput] = dspy.OutputField(
-                desc="Tool selections for multiple iterations"
-            )
-        
-        self.planner = dspy.ChainOfThought(BatchSelectionSignature)
-```
-
 ## Advantages Over DSPy ReAct
 
 1. **Full Control**: Complete control over tool execution timing and parameters
@@ -982,179 +1008,6 @@ result = custom_manager.run_activity(
 )
 ```
 
-### Example 3: Async ActivityManager
-
-```python
-class AsyncActivityManager(ActivityManager):
-    """ActivityManager with async execution support."""
-    
-    async def run_activity_async(self, user_query: str) -> Dict[str, Any]:
-        """Run activity with async tool execution."""
-        state = ConversationState(
-            user_query=user_query,
-            activity_id=str(uuid.uuid4()),
-            start_time=time.time()
-        )
-        
-        while state.iteration_count < self.max_iterations:
-            state.iteration_count += 1
-            
-            # Get action synchronously (DSPy is sync)
-            action = await asyncio.to_thread(
-                self.agent_loop.get_next_action, state
-            )
-            
-            if action.action_type == ActionType.TOOL_EXECUTION:
-                # Execute tools asynchronously
-                tool_results = await self._execute_tools_async(
-                    action.tool_suggestions
-                )
-                
-                state.last_tool_results = tool_results
-                state.conversation_history.append({
-                    "iteration": state.iteration_count,
-                    "action": action.dict(),
-                    "tool_results": tool_results
-                })
-                
-            elif action.action_type == ActionType.FINAL_RESPONSE:
-                return self._create_activity_result(
-                    state.activity_id, state, action.final_response
-                )
-        
-        return self._create_activity_result(
-            state.activity_id, state, 
-            "Max iterations reached", 
-            status="timeout"
-        )
-    
-    async def _execute_tools_async(self, tool_calls: List[ToolCall]) -> List[Dict[str, Any]]:
-        """Execute tools asynchronously."""
-        tasks = []
-        
-        for tool_call in tool_calls:
-            task = asyncio.create_task(
-                self._execute_tool_async(tool_call)
-            )
-            tasks.append(task)
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        formatted_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                formatted_results.append({
-                    "tool_name": tool_calls[i].tool_name,
-                    "status": "error",
-                    "error": str(result)
-                })
-            else:
-                formatted_results.append(result)
-        
-        return formatted_results
-
-# Use async manager
-async def main():
-    async_manager = AsyncActivityManager(
-        agent_loop=agent,
-        tool_registry=registry
-    )
-    
-    result = await async_manager.run_activity_async(
-        "Search for flights and hotels in parallel"
-    )
-    
-    print(result)
-
-# Run
-asyncio.run(main())
-```
-
-### Example 4: Monitoring and Observability
-
-```python
-class ObservableActivityManager(ActivityManager):
-    """ActivityManager with built-in monitoring."""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.metrics = {
-            "total_activities": 0,
-            "successful_activities": 0,
-            "failed_activities": 0,
-            "total_tool_calls": 0,
-            "tool_errors": 0,
-            "average_iterations": 0
-        }
-        self.activity_logs = []
-    
-    def run_activity(self, user_query: str, **kwargs) -> Dict[str, Any]:
-        """Run activity with monitoring."""
-        self.metrics["total_activities"] += 1
-        
-        # Create activity log entry
-        log_entry = {
-            "activity_id": kwargs.get("activity_id", str(uuid.uuid4())),
-            "start_time": time.time(),
-            "user_query": user_query,
-            "events": []
-        }
-        
-        try:
-            # Override action logging
-            original_log = self._log_action
-            self._log_action = lambda aid, iter, action: log_entry["events"].append({
-                "type": "action",
-                "iteration": iter,
-                "action": action.dict(),
-                "timestamp": time.time()
-            })
-            
-            # Run activity
-            result = super().run_activity(user_query, **kwargs)
-            
-            # Update metrics
-            self.metrics["successful_activities"] += 1
-            self.metrics["total_tool_calls"] += result.get("total_tool_calls", 0)
-            
-            # Update average iterations
-            total = self.metrics["total_activities"]
-            avg = self.metrics["average_iterations"]
-            self.metrics["average_iterations"] = (
-                (avg * (total - 1) + result["iterations"]) / total
-            )
-            
-            log_entry["status"] = "success"
-            log_entry["end_time"] = time.time()
-            log_entry["duration"] = log_entry["end_time"] - log_entry["start_time"]
-            
-        except Exception as e:
-            self.metrics["failed_activities"] += 1
-            log_entry["status"] = "failed"
-            log_entry["error"] = str(e)
-            result = {"error": str(e), "status": "failed"}
-        
-        finally:
-            self.activity_logs.append(log_entry)
-            self._log_action = original_log
-        
-        return result
-    
-    def get_metrics_summary(self) -> Dict[str, Any]:
-        """Get current metrics summary."""
-        return {
-            **self.metrics,
-            "success_rate": (
-                self.metrics["successful_activities"] / 
-                max(1, self.metrics["total_activities"])
-            ),
-            "error_rate": (
-                self.metrics["tool_errors"] / 
-                max(1, self.metrics["total_tool_calls"])
-            )
-        }
-```
-
 ## Testing Strategy
 
 ```python
@@ -1218,160 +1071,66 @@ class TestManualAgentLoop:
         pass
 ```
 
+## DSPy Best Practices Alignment
+
+Based on review of DSPy source code and documentation, this implementation follows DSPy best practices:
+
+### ✅ Aligned with DSPy Patterns
+
+1. **Module Structure**: All modules inherit from `dspy.Module` and implement `forward()` method
+2. **Signature Design**: Clear input/output fields with descriptive documentation
+3. **Type Safety**: Uses `Literal` types for tool selection (via enum integration)
+4. **Pydantic Integration**: Structured outputs using Pydantic models
+5. **ChainOfThought**: Core reasoning uses `dspy.ChainOfThought` for better LLM reasoning
+6. **Manual Control Flow**: Custom logic in `forward()` methods, similar to DSPy's own examples
+7. **Synchronous-Only**: Follows DSPy's synchronous patterns (async moved to future-loop.md)
+
+### ✅ Follows DSPy Tool Calling Patterns
+
+1. **Tool Registry**: Dictionary-based tool management similar to DSPy ReAct
+2. **Error Handling**: Graceful error capture during tool execution
+3. **Trajectory Tracking**: Conversation history similar to ReAct's trajectory pattern
+4. **Tool Metadata**: JSON descriptions for LLM consumption
+
+### ✅ Simplified vs DSPy ReAct
+
+| Feature | DSPy ReAct | This Implementation |
+|---------|------------|-------------------|
+| Tool Execution | Automatic | Manual (Activity Manager) |
+| Loop Control | Internal | External |
+| Error Recovery | Basic | Configurable |
+| State Management | Trajectory Dict | ConversationState |
+| Termination | Automatic "finish" | Flexible logic |
+
+### 🎯 Recommendations Applied
+
+1. **Start Simple**: Basic implementation without complex features
+2. **Modular Design**: Separate concerns (reasoning, error handling, formatting)
+3. **External Control**: ActivityManager provides flexibility beyond DSPy ReAct
+4. **Type Safety**: Enum-based tool selection prevents runtime errors
+5. **Future Extensibility**: Clean separation allows adding DSPy teleprompters later
+
 ## Next Steps
 
 1. **Implementation Priority**:
    - Core loop structure with basic tool selection
-   - Error handling and recovery
+   - Basic error handling (simple, not complex recovery)
    - Conversation history management
-   - Performance optimizations
+   - ~~Performance optimizations~~ (moved to future-loop.md)
 
 2. **Integration Points**:
    - Adapt existing MultiToolRegistry
    - Connect to current tool implementations
-   - Add monitoring and logging
+   - ~~Add monitoring and logging~~ (basic only, complex moved to future-loop.md)
 
-3. **Optimization**:
-   - Collect real usage examples
-   - Train with DSPy teleprompters
-   - Fine-tune prompts and decision logic
+3. **DSPy Best Practices Integration**:
+   - Use `dspy.ChainOfThought` for all reasoning modules
+   - Follow DSPy's synchronous-only patterns
+   - Use Pydantic models for structured outputs (already implemented)
+   - Consider teleprompter optimization after basic implementation
 
 4. **Production Readiness**:
    - Comprehensive test suite
    - Performance benchmarks
    - Documentation and examples
 
-## Suggested Improvements
-
-The architecture described above is comprehensive but also introduces significant complexity by separating tool selection, continuation decisions, and error handling into distinct DSPy modules. A more streamlined and DSPy-native approach would be to unify these reasoning steps into a single, more powerful module.
-
-This aligns with the "glass-box" agent pattern, where the external loop is simple, and the complex reasoning is encapsulated within one optimizable DSPy module.
-
-### 1. Unify Reasoning into a Single Module
-
-Instead of chaining `ToolSelector`, `ContinuationDecider`, and `ErrorHandler`, create a single `AgentReasoner` module that performs the entire reasoning step at once.
-
-**A. Define a Unified Signature:**
-
-Create a single signature that takes the full context and decides on the next complete action.
-
-```python
-from pydantic import BaseModel, Field
-from typing import List, Optional, Union
-
-class ToolCall(BaseModel):
-    tool_name: str
-    parameters: dict
-    reasoning: str
-
-class FinalAnswer(BaseModel):
-    answer: str
-    reasoning: str
-
-class ActionDecision(BaseModel):
-    """A union type for the agent's decision."""
-    action: Union[ToolCall, FinalAnswer]
-
-class AgentSignature(dspy.Signature):
-    """
-    Given the user's query and the history of previous actions, decide on the next tool to call or provide the final answer.
-    """
-    question = dspy.InputField(desc="The user's original question.")
-    history = dspy.InputField(desc="The history of previous tool calls and observations, including errors.")
-    available_tools = dspy.InputField(desc="A list of available tools and their descriptions.")
-
-    decision = dspy.OutputField(desc="The next action to take, as a JSON object representing a ToolCall or FinalAnswer.")
-
-```
-
-**B. Create a Simplified Reasoner Module:**
-
-The `ManualAgentLoop` can be replaced by a much simpler `AgentReasoner` module.
-
-```python
-class AgentReasoner(dspy.Module):
-    """A unified module that determines the next agent action."""
-    def __init__(self, tool_names: List[str]):
-        super().__init__()
-        # This Predict module does all the heavy lifting.
-        # It can be replaced with ChainOfThought or a custom class.
-        self.generate_action = dspy.Predict(AgentSignature)
-        self.tool_names = tool_names # For reference if needed
-
-    def forward(self, question: str, history: str, available_tools: str):
-        # The entire reasoning step is a single call to the LM.
-        return self.generate_action(
-            question=question,
-            history=history,
-            available_tools=available_tools
-        )
-```
-
-### 2. Simplify State and History Management
-
-The complex `ConversationState` and `ConversationManager` objects can be replaced with a simple, formatted string for the history. The external `ActivityManager` is responsible for maintaining this string. This is more aligned with how DSPy examples are structured and is easier to debug.
-
-**Simplified History String:**
-
-```
-Thought: The user wants to know the weather in Paris. I should use the `get_weather` tool.
-Action: get_weather(city="Paris")
-Observation: The weather in Paris is 22°C and sunny.
-
-Thought: The user also wants to know the conversion from EUR to USD. I should use the `currency_converter` tool.
-Action: currency_converter(from="EUR", to="USD", amount=100)
-Observation: 100 EUR is approximately 108 USD.
-
-Thought: I have answered both parts of the user's question. I can now provide the final answer.
-Action: FinalAnswer("The weather in Paris is 22°C and sunny, and 100 EUR is about 108 USD.")
-```
-
-### 3. Streamline the External `ActivityManager`
-
-With a unified reasoner, the `ActivityManager` becomes much simpler. Its primary job is to call the reasoner, execute the resulting action, and append the results to the history string.
-
-```python
-class SimplifiedActivityManager:
-    def __init__(self, reasoner: AgentReasoner, tool_registry):
-        self.reasoner = reasoner
-        self.tool_registry = tool_registry
-
-    def run_activity(self, question: str, max_steps: int = 5):
-        history = ""
-        available_tools = json.dumps(self.tool_registry.get_all_tool_descriptions(), indent=2)
-
-        for i in range(max_steps):
-            # 1. Call the unified reasoner
-            prediction = self.reasoner(question=question, history=history, available_tools=available_tools)
-            
-            # Assumes the output can be parsed into the ActionDecision Pydantic model
-            decision = ActionDecision.parse_raw(prediction.decision)
-
-            # 2. Execute the action
-            if isinstance(decision.action, FinalAnswer):
-                print(f"Final Answer: {decision.action.answer}")
-                return decision.action.answer
-
-            elif isinstance(decision.action, ToolCall):
-                tool_call = decision.action
-                print(f"Tool Call: {tool_call.tool_name}({tool_call.parameters})")
-                
-                try:
-                    observation = self.tool_registry.execute(tool_call.tool_name, tool_call.parameters)
-                except Exception as e:
-                    observation = f"Error executing tool: {str(e)}"
-
-                print(f"Observation: {observation}")
-
-                # 3. Append to history and loop
-                history += f"\nThought: {tool_call.reasoning}\nAction: {tool_call.tool_name}({json.dumps(tool_call.parameters)})\nObservation: {observation}"
-        
-        return "Agent stopped due to max steps."
-```
-
-### 4. Advantages of the Simplified Approach
-
-1.  **Easier Optimization**: Optimizing a single `AgentReasoner` module is much more straightforward. You can create `dspy.Example` traces that show the full `(question, history) -> decision` transformation and use a teleprompter like `BootstrapFewShot` to compile the module directly.
-2.  **Reduced Complexity**: The number of classes and the amount of "glue code" are significantly reduced, making the system easier to understand, maintain, and debug.
-3.  **Closer to DSPy Philosophy**: This design treats the LLM as a programmable reasoner (`dspy.Predict`) and keeps the control flow in standard Python, which is a core principle of DSPy.
-4.  **Improved Robustness**: A single, well-prompted module is often more robust than a chain of smaller modules, as it can consider all aspects of the problem (continuation, error handling, tool selection) holistically in one step.

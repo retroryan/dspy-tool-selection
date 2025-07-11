@@ -41,6 +41,11 @@ class MultiToolName(str, Enum):
     PAY_BILL = "pay_bill"
     INVEST = "invest"
     GET_STATEMENT = "get_statement"
+    
+    # Existing tools
+    GIVE_HINT = "give_hint"
+    GUESS_LOCATION = "guess_location"
+    SET_REMINDER = "set_reminder"
 
 
 class MultiTool(BaseModel):

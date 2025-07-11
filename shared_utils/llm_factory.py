@@ -29,11 +29,9 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
     # Common settings
     temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
-    verbose = os.getenv("DEMO_VERBOSE", "true").lower() == "true"
     debug = os.getenv("DSPY_DEBUG", "false").lower() == "true"
     
-    if verbose:
-        print(f"🤖 Setting up {provider} LLM")
+    print(f"🤖 Setting up {provider} LLM")
     
     # Set up logging if debug is enabled
     if debug:
@@ -42,17 +40,15 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
             level=logging.DEBUG,
             format='🔍 %(name)s - %(levelname)s - %(message)s'
         )
-        if verbose:
-            print(f"   🔍 Debug logging: ENABLED")
-            print(f"   💡 Use dspy.inspect_history() to see prompts/responses")
+        print(f"   🔍 Debug logging: ENABLED")
+        print(f"   💡 Use dspy.inspect_history() to see prompts/responses")
     
     # Configure based on provider
     if provider == "ollama":
         model = os.getenv("OLLAMA_MODEL", "gemma3:27b")
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        if verbose:
-            print(f"   Model: {model}")
-            print(f"   Base URL: {base_url}")
+        print(f"   Model: {model}")
+        print(f"   Base URL: {base_url}")
         llm = dspy.LM(
             model=f"ollama/{model}",
             api_base=base_url,
@@ -61,8 +57,7 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
         )
     elif provider == "claude":
         model = os.getenv("CLAUDE_MODEL", "claude-3-opus-20240229")
-        if verbose:
-            print(f"   Model: {model}")
+        print(f"   Model: {model}")
         llm = dspy.LM(
             model=f"anthropic/{model}",
             temperature=temperature,
@@ -70,8 +65,7 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
         )
     elif provider == "openai":
         model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
-        if verbose:
-            print(f"   Model: {model}")
+        print(f"   Model: {model}")
         llm = dspy.LM(
             model=f"openai/{model}",
             temperature=temperature,
@@ -79,8 +73,7 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
         )
     elif provider == "gemini":
         model = os.getenv("GEMINI_MODEL", "gemini-1.5-pro-latest")
-        if verbose:
-            print(f"   Model: {model}")
+        print(f"   Model: {model}")
         llm = dspy.LM(
             model=f"gemini/{model}",
             temperature=temperature,
@@ -89,8 +82,7 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
     else:
         # Generic provider support using full model string
         model = os.getenv("LLM_MODEL", f"{provider}/default-model")
-        if verbose:
-            print(f"   Model: {model}")
+        print(f"   Model: {model}")
         llm = dspy.LM(
             model=model,
             temperature=temperature,
@@ -100,8 +92,7 @@ def setup_llm(provider: Optional[str] = None) -> dspy.LM:
     # Test connection
     try:
         llm("Hello", max_tokens=5)
-        if verbose:
-            print(f"   ✅ {provider} connection successful")
+        print(f"   ✅ {provider} connection successful")
     except Exception as e:
         print(f"   ❌ {provider} connection failed: {e}")
         if provider == "claude":

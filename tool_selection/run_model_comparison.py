@@ -130,7 +130,7 @@ def run_multi_demo_for_model(model: str, predict_mode: bool) -> Dict[str, Any]:
     
     try:
         # Run the demo directly with predict parameter
-        output_data = run_demo(verbose=True, predict=predict_mode)
+        output_data = run_demo(predict=predict_mode)
         
         if 'error' in output_data:
             print(f"❌ Error running demo: {output_data['error']}")

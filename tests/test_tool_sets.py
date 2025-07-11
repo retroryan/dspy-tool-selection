@@ -10,9 +10,9 @@ from tool_selection.tool_sets import (
 from tool_selection.registry import registry
 
 # Import tools to ensure they're registered
-import tool_selection.tools.treasure_hunt.give_hint
-import tool_selection.tools.treasure_hunt.guess_location
-import tool_selection.tools.productivity.set_reminder
+from tools.treasure_hunt.give_hint import GiveHintTool
+from tools.treasure_hunt.guess_location import GuessLocationTool
+from tools.productivity.set_reminder import SetReminderTool
 
 
 class TestToolSetConfig:
@@ -23,19 +23,19 @@ class TestToolSetConfig:
         config = ToolSetConfig(
             name="test_set",
             description="Test tool set",
-            tool_modules=["module1", "module2"]
+            tool_classes=[GiveHintTool, GuessLocationTool]
         )
         
         assert config.name == "test_set"
         assert config.description == "Test tool set"
-        assert len(config.tool_modules) == 2
+        assert len(config.tool_classes) == 2
     
     def test_config_immutable(self):
         """Test that configuration is immutable."""
         config = ToolSetConfig(
             name="test_set",
             description="Test tool set",
-            tool_modules=[]
+            tool_classes=[]
         )
         
         from pydantic import ValidationError
@@ -51,22 +51,22 @@ class TestToolSet:
         config = ToolSetConfig(
             name="test_set",
             description="Test set",
-            tool_modules=["tool_selection.tools.treasure_hunt.give_hint"]
+            tool_classes=[GiveHintTool]
         )
         tool_set = ToolSet(config=config)
         
         assert tool_set.config.name == "test_set"
-        assert len(tool_set.config.tool_modules) == 1
+        assert len(tool_set.config.tool_classes) == 1
     
     def test_get_loaded_tools(self):
-        """Test extracting tool names from module paths."""
+        """Test extracting tool names from tool classes."""
         config = ToolSetConfig(
             name="test_set",
             description="Test set",
-            tool_modules=[
-                "tool_selection.tools.treasure_hunt.give_hint",
-                "tool_selection.tools.treasure_hunt.guess_location",
-                "tool_selection.tools.productivity.set_reminder"
+            tool_classes=[
+                GiveHintTool,
+                GuessLocationTool,
+                SetReminderTool
             ]
         )
         tool_set = ToolSet(config=config)
@@ -77,26 +77,25 @@ class TestToolSet:
         assert "guess_location" in tool_names
         assert "set_reminder" in tool_names
     
-    @patch('tool_selection.tool_sets.import_module')
-    def test_load_tools(self, mock_import):
-        """Test loading tool modules."""
+    def test_load_tools(self):
+        """Test loading tool classes."""
         config = ToolSetConfig(
             name="test_set",
             description="Test set",
-            tool_modules=[
-                "tool_selection.tools.treasure_hunt.give_hint",
-                "tool_selection.tools.treasure_hunt.guess_location"
+            tool_classes=[
+                GiveHintTool,
+                GuessLocationTool
             ]
         )
         tool_set = ToolSet(config=config)
         
-        # Load the tools
+        # Load the tools (which is now a no-op since tools are already imported)
         tool_set.load()
         
-        # Verify import_module was called for each module
-        assert mock_import.call_count == 2
-        mock_import.assert_any_call("tool_selection.tools.treasure_hunt.give_hint")
-        mock_import.assert_any_call("tool_selection.tools.treasure_hunt.guess_location")
+        # Verify tools are accessible
+        tool_names = tool_set.get_loaded_tools()
+        assert "give_hint" in tool_names
+        assert "guess_location" in tool_names
 
 
 class TestTreasureHuntToolSet:
@@ -108,12 +107,12 @@ class TestTreasureHuntToolSet:
         
         assert tool_set.config.name == "treasure_hunt"
         assert "treasure hunting game" in tool_set.config.description
-        assert len(tool_set.config.tool_modules) == 2
+        assert len(tool_set.config.tool_classes) == 2
         
-        # Check specific modules
-        modules = tool_set.config.tool_modules
-        assert any("give_hint" in m for m in modules)
-        assert any("guess_location" in m for m in modules)
+        # Check specific tool classes
+        tool_classes = tool_set.config.tool_classes
+        assert GiveHintTool in tool_classes
+        assert GuessLocationTool in tool_classes
     
     def test_treasure_hunt_test_cases(self):
         """Test treasure hunt test cases."""
@@ -140,10 +139,10 @@ class TestTreasureHuntToolSet:
         # Create the tool set
         tool_set = TreasureHuntToolSet()
         
-        # Verify the tool set contains the expected modules
-        assert len(tool_set.config.tool_modules) == 2
-        assert any("give_hint" in m for m in tool_set.config.tool_modules)
-        assert any("guess_location" in m for m in tool_set.config.tool_modules)
+        # Verify the tool set contains the expected tool classes
+        assert len(tool_set.config.tool_classes) == 2
+        assert GiveHintTool in tool_set.config.tool_classes
+        assert GuessLocationTool in tool_set.config.tool_classes
         
         # Tools should already be registered from imports
         assert registry.get_tool("give_hint") is not None
@@ -159,10 +158,10 @@ class TestProductivityToolSet:
         
         assert tool_set.config.name == "productivity"
         assert "task management" in tool_set.config.description
-        assert len(tool_set.config.tool_modules) == 1
+        assert len(tool_set.config.tool_classes) == 1
         
-        # Check specific module
-        assert any("set_reminder" in m for m in tool_set.config.tool_modules)
+        # Check specific tool class
+        assert SetReminderTool in tool_set.config.tool_classes
     
     def test_productivity_test_cases(self):
         """Test productivity test cases."""
@@ -199,7 +198,7 @@ class TestToolSetRegistry:
             config=ToolSetConfig(
                 name="custom",
                 description="Custom tool set",
-                tool_modules=[]
+                tool_classes=[]
             )
         )
         

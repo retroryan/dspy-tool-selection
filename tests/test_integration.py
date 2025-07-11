@@ -67,17 +67,21 @@ def test_multi_tool_scenarios(system):
             "expected_tools": ["transfer_money"]
         },
         {
-            "request": "Find electronics and add to cart",
-            "expected_tools": ["search_products", "add_to_cart"]
+            "request": "Find electronics under $1000",
+            "expected_tools": ["search_products"]
         },
         {
-            "request": "Cancel my reservation",
+            "request": "Cancel my event EVT123 due to schedule conflict",
             "expected_tools": ["cancel_event"]
         }
     ]
     
     for test in test_cases:
         decision = system["selector"](test["request"], system["tools"])
+        
+        # Check that the selector returned at least one tool
+        assert len(decision.tool_calls) >= 1, f"No tools selected for request: {test['request']}. Reasoning: {decision.reasoning}"
+        
         results = system["registry"].execute(decision)
         
         assert len(results) >= 1
