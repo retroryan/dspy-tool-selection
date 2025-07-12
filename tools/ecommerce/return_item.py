@@ -1,14 +1,15 @@
-"""Return item tool implementation."""
-from typing import List
+"""Return item tool implementation using the unified base class."""
+from typing import List, ClassVar, Dict, Any, Type
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class ReturnItemTool(BaseTool):
     """Tool for returning items for refund or exchange."""
+    
+    NAME: ClassVar[str] = "return_item"
+    MODULE: ClassVar[str] = "tools.ecommerce.return_item"
     
     class Arguments(BaseModel):
         """Arguments for returning an item."""
@@ -16,12 +17,9 @@ class ReturnItemTool(BaseTool):
         item_id: str = Field(..., description="Item ID to return")
         reason: str = Field(..., description="Return reason")
     
-    metadata = ToolMetadata(
-        name="return_item",
-        description="Return an item for refund or exchange",
-        category="ecommerce",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Return an item for refund or exchange"
+    args_model: Type[BaseModel] = Arguments
     
     def execute(self, order_id: str, item_id: str, reason: str) -> dict:
         """Execute the tool to return an item."""
@@ -45,7 +43,7 @@ class ReturnItemTool(BaseTool):
             ),
             ToolTestCase(
                 request="I want to return SKU789 from my last order, wrong size",
-                expected_tools=["return_item"],
+                expected_tools=["list_orders", "return_item"],
                 description="Return for size issue"
             )
         ]

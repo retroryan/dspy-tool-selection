@@ -1,29 +1,46 @@
-"""Add to cart tool implementation."""
-from typing import List
-from pydantic import BaseModel, Field
+"""Add to cart tool implementation using the unified base class."""
+from typing import List, ClassVar, Dict, Any, Type
+from pydantic import BaseModel, Field, field_validator
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class AddToCartTool(BaseTool):
     """Tool for adding products to shopping cart."""
     
+    NAME: ClassVar[str] = "add_to_cart"
+    MODULE: ClassVar[str] = "tools.ecommerce.add_to_cart"
+    
     class Arguments(BaseModel):
         """Arguments for adding to cart."""
-        product_id: str = Field(..., description="Product ID")
+        product_id: str = Field(default="{{selected_product_from_search}}", description="Product ID")
         quantity: int = Field(default=1, ge=1, description="Quantity to add")
+        
+        @field_validator('product_id', mode='before')
+        @classmethod
+        def validate_product_id(cls, v):
+            """Handle placeholder values for product_id."""
+            if v is None or v == "None" or v == "" or str(v).lower() == "null":
+                # Generate a placeholder product ID for demo purposes
+                return "{{selected_product_from_search}}"
+            return v
     
-    metadata = ToolMetadata(
-        name="add_to_cart",
-        description="Add a product to the shopping cart",
-        category="ecommerce",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Add a product to the shopping cart"
+    args_model: Type[BaseModel] = Arguments
     
     def execute(self, product_id: str, quantity: int = 1) -> dict:
         """Execute the tool to add product to cart."""
+        # Handle placeholder values for demo purposes
+        if product_id.startswith('{{') and product_id.endswith('}}'):
+            return {
+                "cart_total": 2,
+                "added": "LAPTOP123",  # Mock product ID
+                "quantity": quantity,
+                "status": "success",
+                "note": f"Mock execution with placeholder: {product_id}"
+            }
+        
         return {
             "cart_total": 2,
             "added": product_id,

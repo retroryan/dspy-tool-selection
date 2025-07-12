@@ -1,5 +1,199 @@
 # DSPy Manual Agent Loop Implementation
 
+## QUICK TESTING
+
+To run the new agentic loop tests:
+
+```bash
+# Run Phase 1-2 tests (Core Models and AgentReasoner)
+poetry run python -m pytest tests/test_phase1_models.py tests/test_phase2_reasoner.py -v
+
+# Run Phase 3 tests (ManualAgentLoop)
+poetry run python -m pytest tests/test_phase3_manual_agent_loop.py -v
+
+# Run Phase 4 tests (ActivityManager)
+poetry run python -m pytest tests/test_phase4_activity_manager.py -v
+
+# Run Phase 5 tests (Registry Integration)
+poetry run python -m pytest tests/test_phase5_registry_integration.py -v
+
+# Run Phase 7 tests (Response Formatting and Conversation History)
+poetry run python -m pytest tests/test_phase7_response_formatter.py -v
+
+# Run Phase 8 integration tests (Real Model Testing)
+poetry run python integration_tests/test_simple_workflow.py
+
+# Run all integration tests
+poetry run python integration_tests/run_all_tests.py
+
+# Run all agentic loop tests
+poetry run python -m pytest tests/test_phase*.py -v
+
+# Test existing tool selection (still works)
+poetry run python -m pytest tests/test_multi_tool_selector.py -v
+
+# Run the multi-tool demo (existing functionality)
+poetry run python -m tool_selection.multi_demo
+```
+
+**Total Test Coverage**: 
+- Phase 1-2: ✅ Core models and reasoning (tested via integration tests)
+- Phase 3: ✅ Manual agent loop (11 tests)  
+- Phase 4: ✅ Activity manager (14 tests)
+- Phase 5: ✅ Registry integration (7 tests)
+- Phase 7: ✅ Response formatting and conversation history (28 tests)
+- Phase 8: ✅ Integration tests with real models (2 tests, 100% success rate)
+- **Total: 62 comprehensive tests for agentic loop implementation**
+
+## Implementation Plan & Checklist
+
+### Phase 1: Core Data Models and Base Structures ✅
+- [x] Create `ToolCall` Pydantic model for tool execution requests (*REUSE* from tool_selection)
+- [x] Create `ReasoningOutput` model for unified reasoning decisions
+- [x] Create `ActionDecision` model for ActivityManager communication  
+- [x] Create `ConversationState` model for stateless operation
+- [x] Create `ActionType` enum for different action types
+- [x] Create `ToolExecutionResult` and `ActivityResult` models
+- [x] Test all models with sample data and validation
+
+**Status**: ✅ **COMPLETED** - All core data models implemented and tested
+**Location**: `agentic_loop/models.py`
+**Testing**: All models pass validation tests with proper field descriptions
+
+### Phase 2: Basic AgentReasoner with Tool Selection ✅
+- [x] Implement `AgentReasonerSignature` with all required fields
+- [x] Create `AgentReasoner` module with `dspy.ChainOfThought`
+- [x] Add tool selection logic with available tools formatting
+- [x] Add continuation decision logic with validation
+- [x] Add history summarization and tool relevance analysis
+- [x] Test with mock tool registry and simple queries
+- [x] Validate that tool selection follows type safety patterns
+- [x] Test with real LLM integration and validate outputs
+
+**Status**: ✅ **COMPLETED** - Core reasoning module implemented and tested
+**Location**: `agentic_loop/agent_reasoner.py`
+**Testing**: All reasoning logic passes validation, real LLM integration successful
+**Features**: Unified reasoning, tool validation, history management, iteration limits
+
+### Phase 3: ManualAgentLoop with Basic Iteration ✅
+- [x] Create `ManualAgentLoop` class inheriting from `dspy.Module`
+- [x] Implement `get_next_action()` method for stateless operation
+- [x] Add core reasoning integration with `AgentReasoner`
+- [x] Add basic error handling for failed tool calls
+- [x] Implement helper methods for formatting inputs/outputs
+- [x] Test with simple single-iteration scenarios
+
+**Status**: ✅ **COMPLETED** - Manual agent loop with basic iteration implemented
+**Location**: `agentic_loop/manual_agent_loop.py`
+**Testing**: All tests pass, including mock reasoner integration
+**Features**: Stateless operation, external control, helper methods, error handling
+
+### Phase 4: ActivityManager for External Control ✅
+- [x] Create `ActivityManager` class with execution control
+- [x] Implement `run_activity()` method with iteration loop
+- [x] Add sequential tool execution support
+- [x] Add activity result creation and formatting
+- [x] Test with mock agent and tool registry
+
+**Status**: ✅ **COMPLETED** - Activity manager with external control implemented
+**Location**: `agentic_loop/activity_manager.py`
+**Testing**: All 14 tests pass, including edge cases and error scenarios
+**Features**: External control, sequential execution, iteration management, timeout handling
+
+### Phase 5: Tool Registry Integration ✅
+- [x] Move `ToolRegistry` from `tool_selection/` to `shared/registry.py`
+- [x] Modify `execute_tool()` to return `ToolExecutionResult` objects
+- [x] Update `ActivityManager` to use `ToolRegistry` instead of callback
+- [x] Remove `TestMultiToolRegistry` (replaced by unified registry)
+- [x] Test registry integration with ActivityManager
+- [x] Maintain backward compatibility with `@register_tool` decorator
+
+**Status**: ✅ **COMPLETED** - Unified tool registry working with agentic loop
+**Location**: `shared/registry.py`
+**Testing**: All 7 tests pass including success/failure scenarios and decorator usage
+**Features**: Unified tool execution, error handling, execution timing, decorator registration
+
+### Phase 6: Error Recovery Module 🔮 TODO (Future)
+**Note**: Moved to future implementation to keep initial version simple
+- [ ] Create `ErrorRecoveryStrategy` Pydantic model
+- [ ] Implement `ErrorRecoverySignature` for DSPy
+- [ ] Create `ErrorRecoveryModule` with recovery logic
+- [ ] Add retry, alternative tool, and graceful degradation strategies
+- [ ] Integrate error recovery with `ManualAgentLoop`
+- [ ] Test with various error scenarios
+
+### Phase 7: Response Formatting and Conversation History ✅
+- [x] Create `ResponseFormatter` module for different output styles
+- [x] Implement `ConversationManager` for history management
+- [x] Add conversation summarization for long histories
+- [x] Add conversation entry models and formatting
+- [x] Test with long conversation scenarios
+
+**Status**: ✅ **COMPLETED** - Response formatting and conversation history implementation
+**Location**: `agentic_loop/response_formatter.py`
+**Testing**: All 28 tests pass including DSPy integration and edge cases
+**Features**: DSPy-based formatting, conversation management, history summarization, multiple response styles
+
+### Phase 8: Testing and Validation ✅
+- [x] Create comprehensive test suite for all modules
+- [x] Add integration tests for full workflow
+- [x] Test with real models and tools (Claude & Ollama)
+- [x] Validate performance and token usage
+- [x] Create simple testing framework without pytest
+- [x] Test productivity tools with real workflows
+
+**Status**: ✅ **COMPLETED** - Integration testing with real models successful
+**Location**: `integration_tests/` directory
+**Testing**: Simple workflow tests pass 100% (2/2 tests)
+**Features**: Real model integration, tool selection validation, performance testing
+
+### Phase 9: Documentation and Examples ⏳
+- [ ] Create usage examples for each component
+- [ ] Add inline code documentation
+- [ ] Create README section for agent loop
+- [ ] Add troubleshooting guide
+- [ ] Create demo script showing full workflow
+
+### Testing Strategy Per Phase
+- **Phase 1-2**: Unit tests with mocked dependencies
+- **Phase 3-4**: Integration tests with mock tools
+- **Phase 5**: Real tool integration tests
+- **Phase 6-7**: Error scenario and edge case testing
+- **Phase 8**: End-to-end validation with real models
+- **Phase 9**: User acceptance testing with examples
+
+### Key Success Criteria
+- [ ] Agent successfully selects and executes tools based on user input
+- [ ] External ActivityManager has complete control over execution flow
+- [ ] Error recovery works for common failure scenarios
+- [ ] Conversation history is managed efficiently
+- [ ] Implementation follows DSPy best practices and patterns
+- [ ] Code is maintainable and well-documented
+
+## Class Organization
+
+**📁 See detailed class organization and reusability analysis in [`agentic_loop/proposal.md`](agentic_loop/proposal.md)**
+
+The implementation will be organized in the `agentic_loop/` directory with clear separation of concerns and maximum reuse of existing `tool_selection/` patterns.
+
+### Key Reusable Components (*REUSE*):
+- **BaseTool class and validation patterns** - Perfect foundation for agentic tools
+- **ToolRegistry and @register_tool decorator** - Excellent tool management system
+- **ToolSet architecture and ToolSetRegistry** - Clean tool organization
+- **ToolCall and MultiToolDecision models** - Good for agentic decisions
+- **Dynamic signature generation patterns** - Type-safe tool selection
+
+### Simple Tool Set Selection Approach:
+- **Static selection at startup** - No dynamic switching during execution
+- **Clear separation** - Each tool set is independent (treasure_hunt, productivity, ecommerce, reasoning, control)
+- **Simple configuration** - Just specify tool set name when creating ActivityManager
+
+```python
+# Example usage
+manager = ActivityManager(tool_set_name="treasure_hunt")
+result = manager.run_activity("Help me find the treasure!")
+```
+
 ## Requirements Understanding
 
 Based on the requirements and referenced examples, this proposal outlines a manual agent loop implementation that:
@@ -45,869 +239,134 @@ ManualAgentLoop (per invocation):
 3. Return: ActionDecision object with suggestions
 ```
 
-## Detailed Component Design
+## Implementation Status
 
-### 1. Core Agent Reasoning Module (Hybrid Approach)
+### ✅ **Phase 1 & 2 Complete**: Core Foundation
+- **Data Models**: All core Pydantic models implemented and tested (`agentic_loop/models.py`)
+- **AgentReasoner**: Unified reasoning module with DSPy ChainOfThought (`agentic_loop/agent_reasoner.py`)
+- **Tool Integration**: Reuses existing `ToolCall` from `tool_selection/models.py`
+- **Type Safety**: Full validation with proper field descriptions
+- **LLM Integration**: Successfully tested with real LLM backend
 
-```python
-import dspy
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Literal, Optional
-from enum import Enum
+### 🔄 **Next Steps**: Implementation continues with Phase 3-4 as planned
 
-# Pydantic models for structured outputs
-class ToolCall(BaseModel):
-    """Represents a single tool call with parameters."""
-    tool_name: str = Field(desc="Name of the tool to execute")
-    parameters: Dict[str, Any] = Field(desc="Parameters to pass to the tool")
-    reasoning: str = Field(desc="Why this tool is needed for the task")
+## Component Architecture Summary
 
-class ReasoningOutput(BaseModel):
-    """Combined output for reasoning about next steps."""
-    # Overall reasoning
-    overall_reasoning: str = Field(desc="High-level reasoning about the current state and next steps")
-    confidence: float = Field(ge=0, le=1, desc="Confidence in the decision (0-1)")
-    
-    # Tool selection
-    should_use_tools: bool = Field(desc="Whether tools should be called in this iteration")
-    tool_calls: Optional[List[ToolCall]] = Field(None, desc="List of tools to execute if should_use_tools is True")
-    parallel_safe: bool = Field(default=True, desc="Whether suggested tools can be executed in parallel")
-    
-    # Continuation decision
-    should_continue: bool = Field(desc="Whether to continue after this iteration")
-    continuation_reasoning: str = Field(desc="Specific reasoning about whether to continue or stop")
-    
-    # Final response (if not continuing)
-    final_response: Optional[str] = Field(None, desc="Final response to user if not continuing")
-    suggested_next_action: Optional[str] = Field(None, desc="Hint about what might be needed next if continuing")
+### 1. Core Agent Reasoning Module ✅
+**Location**: `agentic_loop/agent_reasoner.py`
 
-class AgentReasonerSignature(dspy.Signature):
-    """Unified reasoning about tools and continuation in a single step."""
-    
-    user_query: str = dspy.InputField(desc="The user's original request")
-    conversation_history: str = dspy.InputField(desc="Previous tool calls and their results")
-    last_tool_results: Optional[str] = dspy.InputField(desc="Results from the most recent tool executions, if any")
-    available_tools: str = dspy.InputField(desc="JSON array of available tools and their descriptions")
-    iteration_count: int = dspy.InputField(desc="Current iteration number")
-    max_iterations: int = dspy.InputField(desc="Maximum allowed iterations")
-    
-    reasoning_output: ReasoningOutput = dspy.OutputField(desc="Combined reasoning and decision output")
+**Key Features**:
+- Unified reasoning combining tool selection and continuation decisions
+- DSPy ChainOfThought for complex reasoning
+- History summarization for long conversations
+- Tool relevance analysis for better selection
+- Output validation with iteration limits
+- Type-safe tool validation
 
-class AgentReasoner(dspy.Module):
-    """Core reasoning module that handles both tool selection and continuation decisions."""
-    
-    def __init__(self, tool_names: List[str], max_iterations: int = 5):
-        super().__init__()
-        self.tool_names = tool_names
-        self.max_iterations = max_iterations
-        
-        # Main reasoning with Chain of Thought for complex decisions
-        self.reasoner = dspy.ChainOfThought(AgentReasonerSignature)
-        
-        # Optional: Validate reasoning output consistency
-        self.output_validator = dspy.Predict(
-            "reasoning_output -> is_valid:bool, validation_issues:list[str]"
-        )
-        
-        # History summarizer for long conversations
-        self.history_summarizer = dspy.Predict(
-            "long_history -> summary:str, key_points:list[str]"
-        )
-    
-    def forward(self, user_query: str, conversation_history: str, 
-                last_tool_results: Optional[str], available_tools: str, 
-                iteration_count: int) -> dspy.Prediction:
-        """Execute unified reasoning about next action."""
-        
-        # Summarize history if too long
-        if len(conversation_history) > 3000:
-            summary_result = self.history_summarizer(long_history=conversation_history)
-            conversation_history = (
-                f"[Summarized earlier history]: {summary_result.summary}\n"
-                f"Key points: {', '.join(summary_result.key_points)}\n\n"
-                f"[Recent history]: {conversation_history[-1500:]}"
-            )
-        
-        # Main reasoning
-        result = self.reasoner(
-            user_query=user_query,
-            conversation_history=conversation_history,
-            last_tool_results=last_tool_results or "No previous tool results",
-            available_tools=available_tools,
-            iteration_count=iteration_count,
-            max_iterations=self.max_iterations
-        )
-        
-        # Optional: Validate output consistency
-        if hasattr(self, 'output_validator'):
-            validation = self.output_validator(reasoning_output=result.reasoning_output)
-            if not validation.is_valid:
-                # Log validation issues but don't fail
-                # In production, you might want to retry or handle differently
-                pass
-        
-        return result
-```
+### 2. Error Recovery Module ⏳
+**Location**: `agentic_loop/error_recovery.py` (Phase 6)
 
-### 2. Specialized Error Recovery Module (Remains Separate)
-
-```python
-class ErrorRecoveryStrategy(BaseModel):
-    """Strategy for recovering from tool errors."""
-    strategy_type: Literal["retry", "alternative_tool", "skip", "fail"]
-    details: str
-    alternative_tool: Optional[str] = None
-    retry_with_params: Optional[Dict[str, Any]] = None
-    can_recover: bool = Field(default=True)
-
-class ErrorRecoverySignature(dspy.Signature):
-    """Analyze error and suggest recovery strategy."""
-    
-    error_message: str = dspy.InputField(desc="The error message from failed tool")
-    error_type: str = dspy.InputField(desc="Type of error (e.g., ValueError)")
-    failed_tool: str = dspy.InputField(desc="Name of the tool that failed")
-    tool_parameters: str = dspy.InputField(desc="Parameters that caused the error")
-    user_query: str = dspy.InputField(desc="Original user request for context")
-    available_tools: str = dspy.InputField(desc="List of available alternative tools")
-    previous_attempts: str = dspy.InputField(desc="History of previous recovery attempts")
-    
-    recovery_strategy: ErrorRecoveryStrategy = dspy.OutputField(desc="Recommended recovery approach")
-
-class ErrorRecoveryModule(dspy.Module):
-    """Specialized module for error recovery strategies."""
-    
-    def __init__(self, recovery_strategies: List[str] = None):
-        super().__init__()
-        self.strategies = recovery_strategies or ["retry", "alternative_tool", "graceful_degradation"]
-        self.recovery_planner = dspy.ChainOfThought(ErrorRecoverySignature)
-    
-    def forward(self, error_info: Dict[str, Any], context: ConversationState,
-                available_tools: List[str]) -> ErrorRecoveryStrategy:
-        """Generate recovery strategy for tool errors."""
-        
-        # Format previous attempts
-        previous_attempts = self._format_previous_attempts(context.errors_encountered)
-        
-        result = self.recovery_planner(
-            error_message=str(error_info.get("error", "")),
-            error_type=error_info.get("error_type", "Unknown"),
-            failed_tool=error_info.get("tool_name", ""),
-            tool_parameters=json.dumps(error_info.get("parameters", {})),
-            user_query=context.user_query,
-            available_tools=json.dumps(available_tools),
-            previous_attempts=previous_attempts
-        )
-        
-        return result.recovery_strategy
-```
+**Planned Features**:
+- DSPy-based error analysis and recovery strategies
+- Retry with modified parameters
+- Alternative tool suggestions
+- Graceful degradation strategies
 
 ### 3. Response Formatting Module (Optional)
+**Location**: `agentic_loop/response_formatter.py` (Phase 7)
 
-```python
-class ResponseFormatter(dspy.Module):
-    """Format final responses based on context and style requirements."""
-    
-    def __init__(self, style_guide: str = "concise", include_confidence: bool = False):
-        super().__init__()
-        self.style_guide = style_guide
-        self.include_confidence = include_confidence
-        
-        # Different formatters for different styles
-        if style_guide == "detailed":
-            self.formatter = dspy.ChainOfThought(
-                "raw_response, user_query, key_results, tool_history -> formatted_response, summary_points"
-            )
-        else:
-            self.formatter = dspy.Predict(
-                "raw_response, user_query, key_results -> formatted_response"
-            )
-    
-    def forward(self, raw_response: str, user_query: str, 
-                state: ConversationState) -> str:
-        """Format response based on style guide."""
-        
-        # Extract key results from conversation history
-        key_results = self._extract_key_results(state.conversation_history)
-        
-        if self.style_guide == "detailed":
-            result = self.formatter(
-                raw_response=raw_response,
-                user_query=user_query,
-                key_results=json.dumps(key_results),
-                tool_history=self._format_tool_history(state.conversation_history)
-            )
-            
-            formatted = f"{result.formatted_response}\n\n"
-            if hasattr(result, 'summary_points'):
-                formatted += "Key Points:\n"
-                for point in result.summary_points:
-                    formatted += f"• {point}\n"
-                    
-            if self.include_confidence and state.last_confidence:
-                formatted += f"\nConfidence: {state.last_confidence:.0%}"
-                
-            return formatted
-        else:
-            result = self.formatter(
-                raw_response=raw_response,
-                user_query=user_query,
-                key_results=json.dumps(key_results)
-            )
-            return result.formatted_response
-```
+**Planned Features**:
+- DSPy-based response formatting with style guide support
+- Confidence scoring integration
+- Summary point extraction from conversation history
+- Detailed vs concise output modes
+- Integration with ConversationState for context-aware formatting
 
 ### 4. Stateless Agent Loop for External Control
+**Location**: `agentic_loop/manual_agent_loop.py` (Phase 3)
 
-```python
-import json
-import time
-from typing import List, Dict, Any, Optional, Union
-from enum import Enum
+**Implementation Status**: ⏳ **In Progress**
 
-class ActionType(str, Enum):
-    """Type of action suggested by the agent."""
-    TOOL_EXECUTION = "tool_execution"
-    FINAL_RESPONSE = "final_response"
-    ERROR_RECOVERY = "error_recovery"
+**Key Features**:
+- Stateless design for external control via ActivityManager
+- Unified reasoning combining tool selection and continuation decisions
+- Error recovery integration with specialized error handling
+- Response formatting with confidence scoring
+- DSPy-compatible forward method
+- Helper methods for conversation history and tool result formatting
 
-class ActionDecision(BaseModel):
-    """Decision returned by the agent for external execution."""
-    action_type: ActionType
-    reasoning: str
-    confidence: float = Field(ge=0, le=1)
-    
-    # For tool execution
-    tool_suggestions: Optional[List[ToolCall]] = None
-    parallel_safe: bool = Field(default=True, desc="Whether tools can be executed in parallel")
-    
-    # For final response
-    final_response: Optional[str] = None
-    
-    # For continuation
-    should_continue: bool = Field(default=True)
-    suggested_next_action: Optional[str] = None
-    
-    # Metadata
-    processing_time: float = Field(default=0)
-    tokens_used: Optional[int] = None
+**Core Models**:
+- `ActionDecision`: Returned by agent for external execution control
+- `ConversationState`: Complete state passed between ActivityManager and Agent
+- `ActionType`: Enum for different action types (tool_execution, final_response, error_recovery)
 
-class ConversationState(BaseModel):
-    """Complete conversation state passed between ActivityManager and Agent."""
-    user_query: str
-    iteration_count: int = 0
-    conversation_history: List[Dict[str, Any]] = Field(default_factory=list)
-    last_tool_results: Optional[List[Dict[str, Any]]] = None
-    total_tool_calls: int = 0
-    errors_encountered: List[str] = Field(default_factory=list)
-    
-    # ActivityManager metadata
-    activity_id: Optional[str] = None
-    max_iterations: Optional[int] = None
-    start_time: Optional[float] = None
+**Main Methods**:
+- `get_next_action()`: Main entry point for ActivityManager interaction
+- `_perform_core_reasoning()`: Uses unified AgentReasoner for tool/continuation decisions
+- `_handle_tool_errors()`: Specialized error recovery with alternative tools and retry strategies
 
-class ManualAgentLoop(dspy.Module):
-    """Stateless agent loop designed for external control by ActivityManager.
-    
-    Uses a hybrid approach with consolidated reasoning for tool selection and
-    continuation decisions, while keeping error recovery and formatting separate.
-    """
-    
-    def __init__(self, tool_registry, enable_error_recovery: bool = True,
-                 response_style: str = "concise"):
-        super().__init__()
-        self.tool_registry = tool_registry
-        self.enable_error_recovery = enable_error_recovery
-        
-        # Core reasoning module (hybrid approach)
-        tool_names = list(tool_registry.get_all_tool_names())
-        self.agent_reasoner = AgentReasoner(
-            tool_names=tool_names,
-            max_iterations=10  # Default max, can be overridden by ActivityManager
-        )
-        
-        # Specialized modules (kept separate for flexibility)
-        if enable_error_recovery:
-            self.error_recovery = ErrorRecoveryModule()
-        
-        # Optional response formatter
-        self.response_formatter = ResponseFormatter(
-            style_guide=response_style,
-            include_confidence=True
-        )
-    
-    def get_next_action(self, state: ConversationState) -> ActionDecision:
-        """Get next action suggestion based on current state.
-        
-        This is the main entry point for ActivityManager to interact with the agent.
-        Each call is stateless - all context is provided in the state parameter.
-        """
-        start_time = time.time()
-        
-        try:
-            # Handle errors from previous tool execution if any
-            if state.last_tool_results and any(r.get("status") == "error" for r in state.last_tool_results):
-                if self.enable_error_recovery:
-                    return self._handle_tool_errors(state)
-                # Without error recovery, continue to main reasoning
-            
-            # Main reasoning - unified tool selection and continuation decision
-            reasoning_result = self._perform_core_reasoning(state)
-            reasoning_output = reasoning_result.reasoning_output
-            
-            # Store confidence for potential formatting
-            state.last_confidence = reasoning_output.confidence
-            
-            # Convert reasoning output to action decision
-            if not reasoning_output.should_continue:
-                # Generate final response
-                final_response = reasoning_output.final_response
-                if final_response and self.response_formatter:
-                    final_response = self.response_formatter(
-                        raw_response=final_response,
-                        user_query=state.user_query,
-                        state=state
-                    )
-                
-                return ActionDecision(
-                    action_type=ActionType.FINAL_RESPONSE,
-                    reasoning=reasoning_output.continuation_reasoning,
-                    confidence=reasoning_output.confidence,
-                    should_continue=False,
-                    final_response=final_response,
-                    processing_time=time.time() - start_time
-                )
-            
-            elif reasoning_output.should_use_tools:
-                # Return tool execution suggestion
-                return ActionDecision(
-                    action_type=ActionType.TOOL_EXECUTION,
-                    reasoning=reasoning_output.overall_reasoning,
-                    confidence=reasoning_output.confidence,
-                    tool_suggestions=reasoning_output.tool_calls,
-                    parallel_safe=reasoning_output.parallel_safe,
-                    should_continue=True,
-                    suggested_next_action=reasoning_output.suggested_next_action,
-                    processing_time=time.time() - start_time
-                )
-            
-            else:
-                # Edge case: continue but no tools suggested
-                return ActionDecision(
-                    action_type=ActionType.TOOL_EXECUTION,
-                    reasoning="Need more information but no specific tools identified",
-                    confidence=0.5,
-                    tool_suggestions=[],
-                    should_continue=True,
-                    processing_time=time.time() - start_time
-                )
-            
-        except Exception as e:
-            # Return error recovery action
-            return ActionDecision(
-                action_type=ActionType.ERROR_RECOVERY,
-                reasoning=f"Error in agent processing: {str(e)}",
-                confidence=0.0,
-                should_continue=False,
-                final_response=self._generate_safe_error_response(state, e),
-                processing_time=time.time() - start_time
-            )
-    
-    def forward(self, state: ConversationState) -> ActionDecision:
-        """DSPy-compatible forward method that delegates to get_next_action."""
-        return self.get_next_action(state)
-    
-    def _perform_core_reasoning(self, state: ConversationState) -> dspy.Prediction:
-        """Perform unified reasoning about tools and continuation."""
-        # Format inputs for reasoning
-        history = self._format_conversation_history(state.conversation_history)
-        last_results = self._format_tool_results(state.last_tool_results) if state.last_tool_results else None
-        available_tools = self._format_tool_descriptions()
-        
-        # Use the unified reasoner
-        return self.agent_reasoner(
-            user_query=state.user_query,
-            conversation_history=history,
-            last_tool_results=last_results,
-            available_tools=available_tools,
-            iteration_count=state.iteration_count
-        )
-    
-    def _handle_tool_errors(self, state: ConversationState) -> ActionDecision:
-        """Handle errors from previous tool execution using specialized error recovery module."""
-        start_time = time.time()
-        
-        # Extract error information
-        failed_tools = [r for r in state.last_tool_results if r.get("status") == "error"]
-        
-        if not failed_tools:
-            # No actual errors, continue with normal reasoning
-            return self.get_next_action(state)
-        
-        # Process each error through recovery module
-        recovery_actions = []
-        for error_info in failed_tools:
-            recovery_strategy = self.error_recovery(
-                error_info=error_info,
-                context=state,
-                available_tools=list(self.tool_registry.get_all_tool_names())
-            )
-            
-            if recovery_strategy.can_recover:
-                recovery_actions.append(recovery_strategy)
-        
-        # Determine best recovery approach
-        if recovery_actions:
-            # Prioritize alternative tool strategies
-            alt_tool_strategies = [r for r in recovery_actions if r.strategy_type == "alternative_tool"]
-            retry_strategies = [r for r in recovery_actions if r.strategy_type == "retry"]
-            
-            if alt_tool_strategies:
-                # Create tool calls for alternatives
-                tool_calls = []
-                for strategy in alt_tool_strategies:
-                    if strategy.alternative_tool:
-                        tool_calls.append(ToolCall(
-                            tool_name=strategy.alternative_tool,
-                            parameters=strategy.retry_with_params or {},
-                            reasoning=strategy.details
-                        ))
-                
-                return ActionDecision(
-                    action_type=ActionType.TOOL_EXECUTION,
-                    reasoning="Attempting recovery with alternative tools",
-                    confidence=0.7,
-                    tool_suggestions=tool_calls,
-                    parallel_safe=False,  # Recovery tools should run sequentially
-                    should_continue=True,
-                    processing_time=time.time() - start_time
-                )
-            
-            elif retry_strategies:
-                # Retry with modified parameters
-                tool_calls = []
-                for strategy in retry_strategies:
-                    # Find original tool call info
-                    original_error = next(e for e in failed_tools if any(r == strategy for r in recovery_actions))
-                    tool_calls.append(ToolCall(
-                        tool_name=original_error["tool_name"],
-                        parameters=strategy.retry_with_params or original_error.get("parameters", {}),
-                        reasoning=f"Retry: {strategy.details}"
-                    ))
-                
-                return ActionDecision(
-                    action_type=ActionType.TOOL_EXECUTION,
-                    reasoning="Retrying failed tools with adjusted parameters",
-                    confidence=0.6,
-                    tool_suggestions=tool_calls,
-                    parallel_safe=False,
-                    should_continue=True,
-                    processing_time=time.time() - start_time
-                )
-        
-        # No recovery possible, generate graceful error response
-        error_summary = self._summarize_errors(failed_tools)
-        final_response = self._generate_error_aware_response(state, error_summary)
-        
-        if self.response_formatter:
-            final_response = self.response_formatter(
-                raw_response=final_response,
-                user_query=state.user_query,
-                state=state
-            )
-        
-        return ActionDecision(
-            action_type=ActionType.FINAL_RESPONSE,
-            reasoning=f"Unable to recover from errors: {error_summary}",
-            confidence=0.5,
-            should_continue=False,
-            final_response=final_response,
-            processing_time=time.time() - start_time
-        )
-    
-    def _create_final_response_action(self, state: ConversationState, 
-                                    decision: ContinuationDecision) -> ActionDecision:
-        """Create final response action based on continuation decision."""
-        return ActionDecision(
-            action_type=ActionType.FINAL_RESPONSE,
-            reasoning=decision.reasoning,
-            confidence=decision.confidence,
-            should_continue=False,
-            final_response=decision.final_response or self._generate_final_response(state)
-        )
-    
-    # Helper methods
-    def _format_tool_descriptions(self) -> str:
-        """Format tool descriptions for LLM consumption."""
-        tools = self.tool_registry.get_all_tool_descriptions()
-        return json.dumps(tools, indent=2)
-    
-    def _format_conversation_history(self, history: List[Dict[str, Any]]) -> str:
-        """Format conversation history as readable text."""
-        if not history:
-            return "No previous interactions."
-        
-        formatted = []
-        for entry in history:
-            formatted.append(f"Iteration {entry['iteration']}:")
-            formatted.append(f"  Reasoning: {entry['reasoning']}")
-            formatted.append(f"  Tools used: {', '.join(entry['tool_calls'])}")
-            formatted.append(f"  Results: {entry['results_summary']}")
-        
-        return "\n".join(formatted)
-    
-    def _format_tool_results(self, results: List[Dict[str, Any]]) -> str:
-        """Format tool results for LLM consumption."""
-        formatted = []
-        for result in results:
-            if result["status"] == "success":
-                formatted.append(f"{result['tool_name']}: {result['result']}")
-            else:
-                formatted.append(f"{result['tool_name']}: ERROR - {result['error']}")
-        
-        return "\n".join(formatted)
-```
+### 5. ActivityManager Implementation
+**Location**: `agentic_loop/activity_manager.py` (Phase 4)
 
-### 4. ActivityManager Implementation
+**Implementation Status**: ⏳ **Planned**
 
-```python
-import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any, Optional
-import uuid
+**Key Features**:
+- External controller for ManualAgentLoop with full execution control
+- Multiple execution modes: sequential, parallel, selective
+- Activity lifecycle management with unique IDs
+- Tool execution with timing and error handling
+- Conversation state management and history tracking
+- Custom termination conditions and timeout handling
 
-class ActivityManager:
-    """External controller for ManualAgentLoop with full execution control."""
-    
-    def __init__(self, agent_loop: ManualAgentLoop, tool_registry,
-                 max_iterations: int = 10, 
-                 execution_mode: str = "sequential"):
-        self.agent_loop = agent_loop
-        self.tool_registry = tool_registry
-        self.max_iterations = max_iterations
-        self.execution_mode = execution_mode  # "sequential", "parallel", "selective"
-        
-        # Execution control
-        self.executor = ThreadPoolExecutor(max_workers=5)
-        self.activity_cache = {}
-        
-    def run_activity(self, user_query: str, activity_id: str = None) -> Dict[str, Any]:
-        """Run a complete activity with full control over execution."""
-        activity_id = activity_id or str(uuid.uuid4())
-        
-        # Initialize conversation state
-        state = ConversationState(
-            user_query=user_query,
-            activity_id=activity_id,
-            max_iterations=self.max_iterations,
-            start_time=time.time()
-        )
-        
-        # Main execution loop
-        while state.iteration_count < self.max_iterations:
-            state.iteration_count += 1
-            
-            # Get next action from agent
-            action = self.agent_loop.get_next_action(state)
-            
-            # Log decision
-            self._log_action(activity_id, state.iteration_count, action)
-            
-            # Handle different action types
-            if action.action_type == ActionType.TOOL_EXECUTION:
-                # Execute tools based on execution mode
-                tool_results = self._execute_tools(
-                    action.tool_suggestions,
-                    mode=self.execution_mode,
-                    parallel_safe=action.parallel_safe
-                )
-                
-                # Update state with results
-                state.last_tool_results = tool_results
-                state.total_tool_calls += len(tool_results)
-                
-                # Add to conversation history
-                state.conversation_history.append({
-                    "iteration": state.iteration_count,
-                    "action": action.dict(),
-                    "tool_results": tool_results,
-                    "timestamp": time.time()
-                })
-                
-            elif action.action_type == ActionType.FINAL_RESPONSE:
-                # Activity complete
-                return self._create_activity_result(
-                    activity_id, state, action.final_response
-                )
-                
-            elif action.action_type == ActionType.ERROR_RECOVERY:
-                # Handle error recovery
-                if not action.should_continue:
-                    return self._create_activity_result(
-                        activity_id, state, action.final_response, 
-                        status="error_recovery"
-                    )
-            
-            # Check for manual termination conditions
-            if self._should_terminate(state, action):
-                final_response = self._generate_termination_response(state)
-                return self._create_activity_result(
-                    activity_id, state, final_response, 
-                    status="terminated"
-                )
-        
-        # Max iterations reached
-        timeout_response = self._generate_timeout_response(state)
-        return self._create_activity_result(
-            activity_id, state, timeout_response, 
-            status="max_iterations"
-        )
+**Execution Modes**:
+- **Sequential**: Execute tools one at a time with full error handling
+- **Parallel**: Execute tools concurrently using ThreadPoolExecutor
+- **Selective**: Execute tools with custom prioritization and conditional logic
 
-    def _execute_tools(self, tool_calls: List[ToolCall], 
-                      mode: str = "sequential", 
-                      parallel_safe: bool = True) -> List[Dict[str, Any]]:
-        """Execute tools with specified execution mode."""
-        
-        if mode == "parallel" and parallel_safe and len(tool_calls) > 1:
-            return self._execute_parallel(tool_calls)
-        elif mode == "selective":
-            return self._execute_selective(tool_calls)
-        else:
-            return self._execute_sequential(tool_calls)
-    
-    def _execute_sequential(self, tool_calls: List[ToolCall]) -> List[Dict[str, Any]]:
-        """Execute tools one at a time."""
-        results = []
-        
-        for tool_call in tool_calls:
-            try:
-                # Get tool function
-                tool_func = self.tool_registry.get_function(tool_call.tool_name)
-                
-                # Execute with timing
-                start_time = time.time()
-                result = tool_func(**tool_call.parameters)
-                execution_time = time.time() - start_time
-                
-                results.append({
-                    "tool_name": tool_call.tool_name,
-                    "status": "success",
-                    "result": result,
-                    "execution_time": execution_time,
-                    "parameters": tool_call.parameters
-                })
-                
-            except Exception as e:
-                results.append({
-                    "tool_name": tool_call.tool_name,
-                    "status": "error",
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "parameters": tool_call.parameters
-                })
-        
-        return results
-    
-    def _execute_parallel(self, tool_calls: List[ToolCall]) -> List[Dict[str, Any]]:
-        """Execute tools in parallel."""
-        futures = {}
-        results = []
-        
-        # Submit all tools
-        for tool_call in tool_calls:
-            future = self.executor.submit(
-                self._execute_single_tool, tool_call
-            )
-            futures[future] = tool_call
-        
-        # Collect results
-        for future in as_completed(futures, timeout=30):
-            tool_call = futures[future]
-            try:
-                result = future.result()
-                results.append(result)
-            except Exception as e:
-                results.append({
-                    "tool_name": tool_call.tool_name,
-                    "status": "error",
-                    "error": str(e),
-                    "error_type": "ExecutionError"
-                })
-        
-        return results
-    
-    def _execute_selective(self, tool_calls: List[ToolCall]) -> List[Dict[str, Any]]:
-        """Execute tools with custom logic (e.g., prioritization, conditional)."""
-        results = []
-        
-        # Sort by priority (example: certain tools first)
-        priority_order = ["search", "calculate", "analyze"]
-        sorted_calls = sorted(
-            tool_calls,
-            key=lambda x: priority_order.index(x.tool_name) 
-                         if x.tool_name in priority_order else 999
-        )
-        
-        for tool_call in sorted_calls:
-            result = self._execute_single_tool(tool_call)
-            results.append(result)
-            
-            # Conditional execution based on results
-            if result["status"] == "success" and tool_call.tool_name == "search":
-                # If search found results, maybe skip alternative searches
-                remaining_searches = [
-                    tc for tc in tool_calls 
-                    if tc.tool_name.endswith("_search") and tc != tool_call
-                ]
-                if remaining_searches and "found" in str(result.get("result", "")):
-                    for skip_call in remaining_searches:
-                        results.append({
-                            "tool_name": skip_call.tool_name,
-                            "status": "skipped",
-                            "reason": "Primary search already found results"
-                        })
-        
-        return results
-```
+**Main Methods**:
+- `run_activity()`: Main execution loop with iteration control
+- `_execute_tools()`: Tool execution with mode selection
+- `_execute_sequential/parallel/selective()`: Specialized execution strategies
+- `_should_terminate()`: Custom termination logic
+- `_create_activity_result()`: Activity result formatting
 
 ## Key Implementation Details
 
-### 5. Tool Registry Integration
+### 6. Tool Registry Integration
+**Location**: `agentic_loop/tool_registry_adapter.py` (Phase 5)
 
-```python
-from typing import Protocol, runtime_checkable
+**Implementation Status**: ⏳ **Planned**
 
-@runtime_checkable
-class ToolRegistry(Protocol):
-    """Protocol for tool registry compatibility."""
-    
-    def get_tool(self, tool_name: str) -> callable:
-        """Get a tool function by name."""
-        ...
-    
-    def get_all_tool_names(self) -> List[str]:
-        """Get all registered tool names."""
-        ...
-    
-    def get_all_tool_descriptions(self) -> List[Dict[str, Any]]:
-        """Get tool descriptions in standardized format."""
-        ...
+**Key Features**:
+- Protocol-based compatibility with existing tool registries
+- Adapter pattern for current `MultiToolRegistry` integration
+- Standardized tool description formatting for LLM consumption
+- Error handling for tool lookup and execution
+- Type-safe tool name and parameter validation
 
-class DSPyToolRegistryAdapter:
-    """Adapter to make existing tool registries work with the agent loop."""
-    
-    def __init__(self, existing_registry):
-        self.registry = existing_registry
-    
-    def get_tool(self, tool_name: str) -> callable:
-        """Get tool with error handling."""
-        try:
-            return self.registry.get_function(tool_name)
-        except KeyError:
-            raise ValueError(f"Tool '{tool_name}' not found in registry")
-    
-    def get_all_tool_names(self) -> List[str]:
-        """Get tool names."""
-        return list(self.registry._functions.keys())
-    
-    def get_all_tool_descriptions(self) -> List[Dict[str, Any]]:
-        """Convert tool definitions to standardized format."""
-        descriptions = []
-        for tool_def in self.registry.get_tool_definitions():
-            desc = {
-                "name": tool_def.name.value,
-                "description": tool_def.description,
-                "parameters": []
-            }
-            
-            if tool_def.arguments:
-                for arg in tool_def.arguments:
-                    desc["parameters"].append({
-                        "name": arg.name,
-                        "type": arg.type,
-                        "description": arg.description,
-                        "required": arg.required
-                    })
-            
-            descriptions.append(desc)
-        
-        return descriptions
-```
+**Components**:
+- `ToolRegistry` Protocol: Interface for tool registry compatibility
+- `DSPyToolRegistryAdapter`: Adapter for existing registry systems
+- Tool description standardization with parameter metadata
+- Error handling and validation for tool lookup operations
 
-### 6. Conversation History Management
+### 7. Conversation History Management
+**Location**: `agentic_loop/conversation_manager.py` (Phase 7)
 
-```python
-class ConversationEntry(BaseModel):
-    """Single entry in conversation history."""
-    iteration: int
-    timestamp: float
-    reasoning: str
-    tool_calls: List[str]
-    tool_parameters: Dict[str, Dict[str, Any]]
-    results: List[Dict[str, Any]]
-    results_summary: str
-    errors: List[str] = Field(default_factory=list)
+**Implementation Status**: ⏳ **Planned**
 
-class ConversationManager:
-    """Manages conversation history with summarization and retrieval."""
-    
-    def __init__(self, max_history_length: int = 10):
-        self.max_history_length = max_history_length
-        self.history: List[ConversationEntry] = []
-        
-        # DSPy module for summarization
-        self.summarizer = dspy.ChainOfThought(
-            "conversation_entries -> summary, key_findings, unresolved_questions"
-        )
-    
-    def add_entry(self, entry: ConversationEntry):
-        """Add entry and manage history length."""
-        self.history.append(entry)
-        
-        # Summarize old entries if history is too long
-        if len(self.history) > self.max_history_length:
-            self._compress_history()
-    
-    def _compress_history(self):
-        """Compress old history entries into summary."""
-        # Take first half of history to summarize
-        to_summarize = self.history[:len(self.history)//2]
-        
-        # Create summary
-        summary_text = self._format_entries_for_summary(to_summarize)
-        summary_result = self.summarizer(conversation_entries=summary_text)
-        
-        # Create summary entry
-        summary_entry = ConversationEntry(
-            iteration=-1,  # Special marker for summaries
-            timestamp=to_summarize[0].timestamp,
-            reasoning=f"SUMMARY: {summary_result.summary}",
-            tool_calls=["<summarized>"],
-            tool_parameters={},
-            results=[{"summary": summary_result.key_findings}],
-            results_summary=summary_result.summary
-        )
-        
-        # Replace old entries with summary
-        self.history = [summary_entry] + self.history[len(self.history)//2:]
-    
-    def get_formatted_history(self, last_n: int = None) -> str:
-        """Get formatted history for LLM consumption."""
-        entries = self.history[-last_n:] if last_n else self.history
-        
-        formatted = []
-        for entry in entries:
-            if entry.iteration == -1:  # Summary entry
-                formatted.append(f"[Previous Summary]: {entry.reasoning}")
-            else:
-                formatted.append(f"Iteration {entry.iteration}:")
-                formatted.append(f"  Reasoning: {entry.reasoning}")
-                formatted.append(f"  Tools: {', '.join(entry.tool_calls)}")
-                formatted.append(f"  Results: {entry.results_summary}")
-                if entry.errors:
-                    formatted.append(f"  Errors: {', '.join(entry.errors)}")
-        
-        return "\n\n".join(formatted)
-```
+**Key Features**:
+- Conversation history tracking with summarization
+- DSPy-based automatic summarization for long conversations
+- History compression to manage memory usage
+- Formatted history output for LLM consumption
+- Error tracking and context preservation
+
+**Components**:
+- `ConversationEntry`: Single entry model with iteration metadata
+- `ConversationManager`: Main history management with compression
+- Automatic summarization using DSPy ChainOfThought
+- History formatting for both human and LLM consumption
 
 ## Advantages Over DSPy ReAct
 
@@ -921,155 +380,83 @@ class ConversationManager:
 8. **Flexibility**: Easy to add new modules or modify flow
 9. **External Orchestration**: ActivityManager provides complete control over execution
 
-## Implementation Examples
+## Usage Examples
 
-### Example 1: Basic ActivityManager Usage
+### Basic Usage Pattern
+**Description**: Initialize components and run a simple activity
+- Create MultiToolRegistry with tools (search, calculate, weather)
+- Initialize ManualAgentLoop with registry adapter and error recovery
+- Create ActivityManager with execution mode and iteration limits
+- Run activity with user query and process results
 
-```python
-# Initialize components
-registry = MultiToolRegistry()
-registry.register(search_web, calculate, get_weather)
+### Advanced Control Pattern
+**Description**: Custom ActivityManager with specialized termination logic
+- Extend ActivityManager with custom termination conditions
+- Add pre-validation for tool calls before execution
+- Implement confidence-based and error-count-based termination
+- Handle critical tool failures with custom recovery strategies
 
-# Create agent and activity manager
-agent = ManualAgentLoop(
-    tool_registry=DSPyToolRegistryAdapter(registry),
-    enable_error_recovery=True
-)
-
-activity_manager = ActivityManager(
-    agent_loop=agent,
-    tool_registry=registry,
-    max_iterations=5,
-    execution_mode="sequential"
-)
-
-# Run activity
-result = activity_manager.run_activity(
-    "What's the weather in Paris and how much is 100 EUR in USD?"
-)
-
-print(f"Final response: {result['final_response']}")
-print(f"Total iterations: {result['iterations']}")
-print(f"Tools used: {result['tools_used']}")
-```
-
-### Example 2: Advanced Execution Control
-
-```python
-class CustomActivityManager(ActivityManager):
-    """Extended ActivityManager with custom execution logic."""
-    
-    def _should_terminate(self, state: ConversationState, 
-                         action: ActionDecision) -> bool:
-        """Custom termination logic."""
-        # Terminate if confidence is too low
-        if action.confidence < 0.3:
-            return True
-        
-        # Terminate if too many errors
-        if len(state.errors_encountered) > 3:
-            return True
-        
-        # Terminate if specific tools fail
-        critical_tools = ["payment_process", "order_submit"]
-        if state.last_tool_results:
-            for result in state.last_tool_results:
-                if (result.get("tool_name") in critical_tools and 
-                    result.get("status") == "error"):
-                    return True
-        
-        return False
-    
-    def _execute_tools_with_validation(self, tool_calls: List[ToolCall]) -> List[Dict[str, Any]]:
-        """Execute tools with pre-validation."""
-        validated_calls = []
-        
-        for tool_call in tool_calls:
-            # Validate parameters before execution
-            if self._validate_tool_call(tool_call):
-                validated_calls.append(tool_call)
-            else:
-                # Log validation failure
-                self._log_validation_failure(tool_call)
-        
-        # Execute validated tools
-        return self._execute_tools(validated_calls, mode=self.execution_mode)
-
-# Use custom manager
-custom_manager = CustomActivityManager(
-    agent_loop=agent,
-    tool_registry=registry,
-    max_iterations=10,
-    execution_mode="selective"
-)
-
-result = custom_manager.run_activity(
-    "Process order #12345 and send confirmation email"
-)
-```
+**See**: Implementation examples will be available in `agentic_loop/examples/` directory
 
 ## Testing Strategy
+**Location**: `tests/test_agentic_loop/` (Phase 8)
+
+**Test Coverage Areas**:
+- **Unit Tests**: Individual component testing with mocked dependencies
+- **Integration Tests**: Full workflow testing with mock tools
+- **Error Handling**: Error recovery and edge case validation
+- **Performance Tests**: Token usage and execution timing validation
+- **Real Model Tests**: End-to-end validation with actual Ollama models
+
+**Test Categories**:
+- Single iteration success scenarios
+- Multi-iteration conversation flows
+- Error recovery with alternative tools and retry strategies
+- Parallel vs sequential tool execution
+- Custom termination conditions and timeout handling
+- Conversation history management and summarization
+
+**See**: Comprehensive test suite will be available in `tests/test_agentic_loop/` directory
+
+## Dynamic Literals and Type Safety
+
+### Dynamic Signature Generation Analysis
+
+The existing `tool_selection/multi_tool_selector.py` demonstrates an advanced pattern using **Dynamic Signature Generation with Literal types for compile-time safety**:
 
 ```python
-import pytest
-from unittest.mock import Mock, patch
-
-class TestManualAgentLoop:
-    """Comprehensive test suite for agent loop."""
+def create_dynamic_tool_signature(tool_names: tuple[str, ...]) -> Type[dspy.Signature]:
+    """Create a signature with dynamic Literal types for compile-time type safety."""
     
-    @pytest.fixture
-    def mock_registry(self):
-        """Create mock tool registry."""
-        registry = Mock()
-        registry.get_all_tool_names.return_value = ["search", "calculate"]
-        registry.get_all_tool_descriptions.return_value = [
-            {"name": "search", "description": "Search the web"},
-            {"name": "calculate", "description": "Perform calculations"}
-        ]
-        return registry
-    
-    def test_single_iteration_success(self, mock_registry):
-        """Test successful single iteration."""
-        agent = ManualAgentLoop(mock_registry, max_iterations=1)
-        
-        # Mock tool selection
-        with patch.object(agent.tool_selector, 'forward') as mock_select:
-            mock_select.return_value.output = ToolSelectionOutput(
-                reasoning="Need to search for information",
-                tool_calls=[ToolCall(
-                    tool_name="search",
-                    parameters={"query": "test"},
-                    reasoning="Search for test"
-                )],
-                parallel_execution=False
-            )
-            
-            # Mock continuation decision
-            with patch.object(agent.continuation_decider, 'forward') as mock_decide:
-                mock_decide.return_value.decision = ContinuationDecision(
-                    should_continue=False,
-                    confidence=0.9,
-                    reasoning="Found the answer",
-                    final_response="Here is your answer"
-                )
-                
-                # Run agent
-                state = agent("test query")
-                
-                assert state.final_response == "Here is your answer"
-                assert state.iteration_count == 1
-                assert state.total_tool_calls == 1
-    
-    def test_error_recovery(self, mock_registry):
-        """Test error handling and recovery."""
-        # Test implementation...
-        pass
-    
-    def test_parallel_execution(self, mock_registry):
-        """Test parallel tool execution."""
-        # Test implementation...
-        pass
+    class DynamicToolSelection(BaseModel):
+        tool_name: Literal[tool_names]  # Type-safe tool names!
+        arguments: Dict[str, Any] = Field(default_factory=dict)
+        confidence: float = Field(ge=0, le=1)
 ```
+
+**Key Benefits:**
+- **Compile-time safety**: Tool names are constrained to only valid options
+- **Runtime validation**: Pydantic ensures only valid tool names can be selected
+- **IDE support**: Auto-completion and type checking for tool names
+- **Error prevention**: Impossible to select non-existent tools
+
+### Evaluation for Agentic Loop Implementation
+
+**Decision: NOT implementing dynamic signature generation for the agentic loop**
+
+**Reasoning:**
+1. **Simplicity First**: The agentic loop focuses on conversation flow and iteration control, not multi-tool selection
+2. **Different Use Case**: The agentic loop uses a single `AgentReasonerSignature` for all reasoning, while multi-tool selection needs different signatures per tool set
+3. **Tool Validation Already Exists**: The `AgentReasoner._validate_reasoning_output()` method already validates tool names at runtime
+4. **Maintaining Focus**: The agentic loop's core innovation is external control via `ActivityManager`, not advanced type safety
+
+**Current Approach:**
+- **String-based tool names**: Simple and flexible for the agentic loop's unified reasoning
+- **Runtime validation**: Existing validation in `AgentReasoner` prevents invalid tool usage
+- **Clean separation**: Let the multi-tool selector handle advanced type safety for tool selection
+
+**Future Consideration:**
+If the agentic loop needs to switch tool sets dynamically, we could adopt dynamic signature generation. However, for the current use case (static tool sets per activity), the complexity isn't justified.
 
 ## DSPy Best Practices Alignment
 

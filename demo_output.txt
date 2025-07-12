@@ -1,0 +1,692 @@
+🦙 DSPy Tool Selection Demo
+==========================
+
+🤔 Running in Chain of Thought mode (step-by-step reasoning)
+
+🚀 Running demo...
+📦 Tool set: ecommerce
+
+2025/07/11 16:59:34 WARNING dspy.clients.lm: LM response was truncated due to exceeding max_tokens=1024. You can inspect the latest LM interactions with `dspy.inspect_history()`. To avoid truncation, consider passing a larger max_tokens when setting up dspy.LM. You may also consider increasing the temperature (currently 0.7)  if the reason for truncation is repetition.
+
+================================================================================
+                🚀 DSPy Multi-Tool Selection Demo (New Registry)                 
+================================================================================
+Testing LLM's capacity for multi-tool selection using centralized registry
+Mode: dspy.ChainOfThought
+
+🤖 Setting up claude LLM
+   Model: claude-3-7-sonnet-20250219
+   ✅ claude connection successful
+Loading tool sets: ['ecommerce']
+Loaded 6 tools with 22 test cases
+
+================================================================================
+
+[1/22] Testing: Basic order lookup
+👤 User: Get order details for order 12345
+🎯 Expected tools: ['get_order']
+
+🤖 Selected tools: ['get_order']
+   Reasoning: The user is requesting order details for a specific order with ID "12345". Looking at the available tools, I need to identify which one is most appropriate for this task.
+
+From the available tools:
+1. `get_order` - Gets order details by order ID
+2. `list_orders` - Lists all orders for a customer by email address
+3. `add_to_cart` - Adds a product to the shopping cart
+4. `search_products` - Searches for products in the catalog
+5. `track_order` - Tracks the status of an order
+6. `return_item` - Returns an item for refund or exchange
+
+For this request, the `get_order` tool is the most appropriate since:
+- The user specifically wants to get details for a particular order
+- The user has provided the order ID (12345)
+- The `get_order` tool is designed exactly for this purpose - retrieving order details by order ID
+
+The required argument for the `get_order` tool is `order_id`, which the user has provided as "12345".
+
+No other tools are needed to fulfill this request since we're only looking up information about a specific order.
+
+📊 Evaluation:
+   Expected: ['get_order']
+   Actual: ['get_order']
+   ✅ Correct: ['get_order']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ get_order(order_id='12345'): {'error': 'Order 12345 not found.'}
+
+================================================================================
+
+
+[2/22] Testing: Order status check
+👤 User: I need to check my order ORD-001
+🎯 Expected tools: ['get_order']
+
+🤖 Selected tools: ['get_order', 'track_order']
+   Reasoning: The user wants to check their order with ID "ORD-001". Looking at the available tools, there are two tools that could potentially help with this request:
+
+1. `get_order`: This tool retrieves detailed information about a specific order using the order ID. It requires the `order_id` parameter.
+2. `track_order`: This tool provides tracking status information for an order using the order ID. It also requires the `order_id` parameter.
+
+Since the user has specifically asked to "check" their order without specifying whether they want detailed order information or tracking status, I should consider both tools. However, `get_order` is more appropriate as the primary tool since it provides comprehensive order details, which is likely what the user means by "checking" their order. The `track_order` tool would be a good secondary option with slightly lower confidence since it focuses specifically on the shipping/delivery status rather than all order details.
+
+📊 Evaluation:
+   Expected: ['get_order']
+   Actual: ['get_order', 'track_order']
+   ✅ Correct: ['get_order']
+   ➕ Extra: ['track_order']
+   Precision: 0.50
+   Recall: 1.00
+   F1 Score: 0.67
+
+🔧 Execution results:
+   ✓ get_order(order_id='ORD-001'): {'error': 'Order ORD-001 not found.'}
+   ✓ track_order(order_id='ORD-001'): {'order_id': 'ORD-001', 'status': 'In transit', 'delivery_date': 'Tomorrow', 'tracking_number': 'TRKORD-001'}
+
+================================================================================
+
+
+[3/22] Testing: Order information request
+👤 User: Show me information about order ABC123
+🎯 Expected tools: ['get_order']
+
+🤖 Selected tools: ['get_order', 'track_order']
+   Reasoning: The user is requesting information about order ABC123. Looking at the available tools, there are two tools that deal with order information:
+
+1. `get_order`: This tool retrieves detailed information about a specific order when provided with an order ID.
+2. `track_order`: This tool tracks the status of an order when provided with an order ID.
+
+Since the user specifically mentioned "Show me information about order ABC123", they're looking for details about a specific order with ID "ABC123". The most appropriate tool for this request is `get_order` since it's designed to retrieve detailed order information.
+
+The `track_order` tool could also be relevant as it provides status information about an order, which is a subset of order information. However, `get_order` would provide more comprehensive information, likely including the status as well as other details.
+
+For completeness, I'll select both tools with appropriate confidence levels, with `get_order` having higher confidence since it's more directly aligned with the request.
+
+📊 Evaluation:
+   Expected: ['get_order']
+   Actual: ['get_order', 'track_order']
+   ✅ Correct: ['get_order']
+   ➕ Extra: ['track_order']
+   Precision: 0.50
+   Recall: 1.00
+   F1 Score: 0.67
+
+🔧 Execution results:
+   ✓ get_order(order_id='ABC123'): {'error': 'Order ABC123 not found.'}
+   ✓ track_order(order_id='ABC123'): {'order_id': 'ABC123', 'status': 'In transit', 'delivery_date': 'Tomorrow', 'tracking_number': 'TRKABC123'}
+
+================================================================================
+
+
+[4/22] Testing: Basic order listing
+👤 User: Show me all orders for customer@example.com
+🎯 Expected tools: ['list_orders']
+
+🤖 Selected tools: ['list_orders']
+   Reasoning: The user is asking to see all orders for a specific customer with the email address "customer@example.com". This is a straightforward request that requires retrieving order information for a particular customer.
+
+Looking at the available tools, the "list_orders" tool is designed specifically for this purpose. It allows listing all orders for a customer by their email address. The tool requires an email_address parameter, which in this case would be "customer@example.com".
+
+No other tools are needed for this request since we're only retrieving information, not modifying anything or performing additional operations. The "get_order" tool would be useful if we needed details for a specific order ID, but here we want all orders for a customer. The other tools (add_to_cart, search_products, track_order, return_item) are for different functionalities not related to simply listing orders.
+
+📊 Evaluation:
+   Expected: ['list_orders']
+   Actual: ['list_orders']
+   ✅ Correct: ['list_orders']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ list_orders(email_address='customer@example.com'): {'error': 'No orders for customer customer@example.com found.'}
+
+================================================================================
+
+
+[5/22] Testing: Order history request
+👤 User: I need to see my order history for john@test.com
+🎯 Expected tools: ['list_orders']
+
+🤖 Selected tools: ['list_orders']
+   Reasoning: The user is requesting to see their order history for a specific email address (john@test.com). Looking at the available tools, the most appropriate tool for this task is `list_orders`, which is specifically designed to "List all orders for a customer by email address".
+
+The `list_orders` tool takes an optional parameter `email_address` which is exactly what we need to provide to fulfill the user's request. Since the user has explicitly specified the email address (john@test.com), we should use this value rather than the default.
+
+No other tools are needed for this request since we're only retrieving order history information, not modifying anything or performing additional actions.
+
+📊 Evaluation:
+   Expected: ['list_orders']
+   Actual: ['list_orders']
+   ✅ Correct: ['list_orders']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ list_orders(email_address='john@test.com'): {'error': 'No orders for customer john@test.com found.'}
+
+================================================================================
+
+
+[6/22] Testing: List customer orders
+👤 User: List orders for user@domain.com
+🎯 Expected tools: ['list_orders']
+
+🤖 Selected tools: ['list_orders']
+   Reasoning: The user is requesting to list orders for a specific email address: "user@domain.com". Looking at the available tools, I need to determine which one is most appropriate for this task.
+
+Among the available tools:
+1. `get_order` - This retrieves a specific order by ID, but the user wants to list all orders.
+2. `list_orders` - This is designed to list all orders for a customer by email address, which matches exactly what the user is requesting.
+3. `add_to_cart` - Not relevant for viewing order history.
+4. `search_products` - Not relevant for viewing order history.
+5. `track_order` - This is for tracking a specific order, not listing all orders.
+6. `return_item` - This is for returning items, not viewing order history.
+
+The `list_orders` tool is clearly the most appropriate choice since it's designed specifically for listing all orders associated with an email address. The tool takes an email_address parameter, which should be set to "user@domain.com" as specified in the user's request.
+
+📊 Evaluation:
+   Expected: ['list_orders']
+   Actual: ['list_orders']
+   ✅ Correct: ['list_orders']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ list_orders(email_address='user@domain.com'): {'error': 'No orders for customer user@domain.com found.'}
+
+================================================================================
+
+
+[7/22] Testing: Add single product
+👤 User: Add product PROD123 to my cart
+🎯 Expected tools: ['add_to_cart']
+
+🤖 Selected tools: ['add_to_cart']
+   Reasoning: The user wants to add a product with ID "PROD123" to their cart. Looking at the available tools, the most appropriate one for this task is the "add_to_cart" tool, which is specifically designed to add products to the shopping cart.
+
+The "add_to_cart" tool requires two arguments:
+1. "product_id" - The user has specified this as "PROD123"
+2. "quantity" - The user hasn't specified a quantity, so we can use the default value of 1
+
+No other tools are needed for this simple request. The user hasn't asked to search for products, track orders, return items, or view order details. They've provided the exact product ID they want to add to their cart, so we can directly use the "add_to_cart" tool.
+
+📊 Evaluation:
+   Expected: ['add_to_cart']
+   Actual: ['add_to_cart']
+   ✅ Correct: ['add_to_cart']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ add_to_cart(product_id='PROD123', quantity=1): {'cart_total': 2, 'added': 'PROD123', 'quantity': 1, 'status': 'success'}
+
+================================================================================
+
+
+[8/22] Testing: Add multiple quantities
+👤 User: Add 3 units of SKU456 to cart
+🎯 Expected tools: ['add_to_cart']
+
+🤖 Selected tools: ['add_to_cart']
+   Reasoning: The user wants to add 3 units of a product with SKU456 to their cart. Let's analyze what tools we need:
+
+1. The user has specified a product ID (SKU456) and a quantity (3).
+2. Looking at the available tools, the "add_to_cart" tool is the most appropriate for this task as it allows adding products to the shopping cart.
+3. The "add_to_cart" tool requires two arguments:
+   - product_id: The user has specified SKU456
+   - quantity: The user wants to add 3 units
+
+We don't need to search for the product first since the user has already specified the exact SKU they want. We can directly use the "add_to_cart" tool with the provided information.
+
+📊 Evaluation:
+   Expected: ['add_to_cart']
+   Actual: ['add_to_cart']
+   ✅ Correct: ['add_to_cart']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ add_to_cart(product_id='SKU456', quantity=3): {'cart_total': 2, 'added': 'SKU456', 'quantity': 3, 'status': 'success'}
+
+================================================================================
+
+
+[9/22] Testing: Search with price filter
+👤 User: Search for laptops under $1000
+🎯 Expected tools: ['search_products']
+
+🤖 Selected tools: ['search_products']
+   Reasoning: The user wants to search for laptops under $1000. Let's analyze what tool would be appropriate for this request:
+
+1. Looking at the available tools, "search_products" is the most relevant as it allows searching the product catalog.
+2. For the search query, we need to specify "laptops" as we're looking for laptop products.
+3. We don't need to specify a category since "laptops" in the query should be sufficient.
+4. We need to set a maximum price of $1000 as the user specifically wants laptops under this price point.
+
+No other tools are needed for this specific request. The user is only asking to search for products that match certain criteria, not to add items to cart, track orders, or perform any other actions.
+
+📊 Evaluation:
+   Expected: ['search_products']
+   Actual: ['search_products']
+   ✅ Correct: ['search_products']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ search_products(query='laptops', category=None, max_price=1000.0): {'products': "Found 10 products matching 'laptops' (under $1000.0)", 'count': 10, 'query': 'laptops', 'filters': {'category': None, 'max_price': 1000.0}}
+
+================================================================================
+
+
+[10/22] Testing: Search by category
+👤 User: Find electronics in the catalog
+🎯 Expected tools: ['search_products']
+
+🤖 Selected tools: ['search_products']
+   Reasoning: The user wants to find electronics in the catalog. This is a product search request where the user is looking for items in the "electronics" category. 
+
+Looking at the available tools, the most appropriate tool for this task is `search_products`, which allows searching the catalog with parameters including a search query and a category. 
+
+For this request, I need to:
+1. Use the `search_products` tool
+2. Set the "category" parameter to "electronics"
+3. Leave the "query" parameter as a general term like "electronics" since the user didn't specify a particular electronic product
+4. Leave "max_price" as the default (null) since no price constraint was mentioned
+
+No other tools are needed for this simple product search request.
+
+📊 Evaluation:
+   Expected: ['search_products']
+   Actual: ['search_products']
+   ✅ Correct: ['search_products']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ search_products(query='electronics', category='electronics', max_price=None): {'products': "Found 10 products matching 'electronics' (category: electronics)", 'count': 10, 'query': 'electronics', 'filters': {'category': 'electronics', 'max_price': None}}
+
+================================================================================
+
+
+[11/22] Testing: General product search
+👤 User: Look for wireless headphones
+🎯 Expected tools: ['search_products']
+
+🤖 Selected tools: ['search_products']
+   Reasoning: The user wants to look for wireless headphones. This is a product search request. Among the available tools, the most appropriate one is:
+
+1. `search_products`: This tool allows searching for products in the catalog, which is exactly what the user wants to do. The user specifically wants to look for wireless headphones, so we need to use "wireless headphones" as the search query.
+
+No other tools are needed at this stage since the user only wants to search for products, not add them to cart, track orders, or perform any other actions.
+
+📊 Evaluation:
+   Expected: ['search_products']
+   Actual: ['search_products']
+   ✅ Correct: ['search_products']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ search_products(query='wireless headphones', category=None, max_price=None): {'products': "Found 10 products matching 'wireless headphones'", 'count': 10, 'query': 'wireless headphones', 'filters': {'category': None, 'max_price': None}}
+
+================================================================================
+
+
+[12/22] Testing: Track specific order
+👤 User: Track my order ORD789
+🎯 Expected tools: ['track_order']
+
+🤖 Selected tools: ['track_order']
+   Reasoning: The user is requesting to track an order with the ID "ORD789". Looking at the available tools, the most appropriate tool for this request is the "track_order" tool, which is specifically designed to track the status of an order. This tool requires an "order_id" argument, which the user has provided as "ORD789".
+
+No other tools are needed for this straightforward request. The user is not asking to view detailed order information (which would use "get_order"), list all orders, add products to cart, search for products, or return items.
+
+📊 Evaluation:
+   Expected: ['track_order']
+   Actual: ['track_order']
+   ✅ Correct: ['track_order']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ track_order(order_id='ORD789'): {'order_id': 'ORD789', 'status': 'In transit', 'delivery_date': 'Tomorrow', 'tracking_number': 'TRKORD789'}
+
+================================================================================
+
+
+[13/22] Testing: Check package location
+👤 User: Where is my package ORDER123?
+🎯 Expected tools: ['track_order']
+
+🤖 Selected tools: ['track_order']
+   Reasoning: The user is asking about the location or status of a specific package with order ID "ORDER123". They want to know where their package is, which is essentially a tracking request.
+
+Looking at the available tools, the most appropriate tool for this request is the "track_order" tool, which is specifically designed to "Track the status of an order" and requires an order_id parameter. Since the user has provided the order ID "ORDER123", I can use this tool with that specific order ID to fulfill their request.
+
+While the "get_order" tool could also provide some information about the order, the "track_order" tool is more specifically designed for tracking the current status and location of a package, which is what the user is asking about.
+
+I'll select the "track_order" tool with high confidence since it directly addresses the user's need to know where their package is.
+
+📊 Evaluation:
+   Expected: ['track_order']
+   Actual: ['track_order']
+   ✅ Correct: ['track_order']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ track_order(order_id='ORDER123'): {'order_id': 'ORDER123', 'status': 'In transit', 'delivery_date': 'Tomorrow', 'tracking_number': 'TRKORDER123'}
+
+================================================================================
+
+
+[14/22] Testing: Return defective item
+👤 User: Return item ITEM123 from order ORD456 because it's defective
+🎯 Expected tools: ['return_item']
+
+🤖 Selected tools: ['get_order', 'return_item']
+   Reasoning: The user wants to return an item (ITEM123) from an order (ORD456) because it's defective. Let's analyze what tools we need:
+
+1. First, we should verify the order exists and check its details. The `get_order` tool would be appropriate for this, as it allows us to retrieve order details using an order ID.
+
+2. After verifying the order, we need to process the return. The `return_item` tool is specifically designed for this purpose, requiring:
+   - order_id (which we have: ORD456)
+   - item_id (which we have: ITEM123)
+   - reason (which the user provided: "defective")
+
+The execution order matters here because we should first verify the order exists before attempting to process a return. While we could potentially skip directly to the return process, it's generally good practice to verify the order details first.
+
+📊 Evaluation:
+   Expected: ['return_item']
+   Actual: ['get_order', 'return_item']
+   ✅ Correct: ['return_item']
+   ➕ Extra: ['get_order']
+   Precision: 0.50
+   Recall: 1.00
+   F1 Score: 0.67
+
+🔧 Execution results:
+   ✓ get_order(order_id='ORD456'): {'error': 'Order ORD456 not found.'}
+   ✓ return_item(order_id='ORD456', item_id='ITEM123', reason='defective'): {'return_id': 'RET456', 'status': 'processing', 'refund_amount': '$99.99', 'order_id': 'ORD456', 'item_id': 'ITEM123', 'reason': 'defective'}
+
+================================================================================
+
+
+[15/22] Testing: Return for size issue
+👤 User: I want to return SKU789 from my last order, wrong size
+🎯 Expected tools: ['list_orders', 'return_item']
+
+🤖 Selected tools: ['list_orders', 'get_order', 'return_item']
+   Reasoning: The user wants to return an item (SKU789) from their last order because it's the wrong size. To accomplish this, I need to:
+
+1. First, identify the user's last order - Since the user didn't provide an order ID, I need to list their orders to find the most recent one. The `list_orders` tool can do this, and it will default to using the current user's email address.
+
+2. After getting the list of orders, I'll need to get the details of the most recent order to confirm it contains SKU789 and to get the order_id. The `get_order` tool will be needed for this, but I don't have the order_id yet, so this will have to happen after the first step.
+
+3. Finally, I'll need to initiate the return process using the `return_item` tool, which requires:
+   - order_id (which I'll get from steps 1-2)
+   - item_id (which is SKU789)
+   - reason (which the user stated is "wrong size")
+
+The execution order definitely matters here, as I need information from earlier steps to complete later steps.
+
+📊 Evaluation:
+   Expected: ['list_orders', 'return_item']
+   Actual: ['get_order', 'list_orders', 'return_item']
+   ✅ Correct: ['list_orders', 'return_item']
+   ➕ Extra: ['get_order']
+   Precision: 0.67
+   Recall: 1.00
+   F1 Score: 0.80
+
+🔧 Execution results:
+   ✓ list_orders(email_address='{{user_email}}'): {'orders': [{'order_id': 'ORD123', 'order_date': '2024-01-15', 'status': 'delivered', 'total': '$99.99', 'items': [{'item_id': 'SKU789', 'name': 'Product Name', 'quantity': 1}]}], 'note': 'Mock data returned for placeholder email: {{user_email}}'}
+   ✓ get_order(order_id='{{most_recent_order_id}}'): {'error': 'Order {{most_recent_order_id}} not found.'}
+   ✓ return_item(order_id='{{order_id}}', item_id='SKU789', reason='wrong size'): {'return_id': 'RET456', 'status': 'processing', 'refund_amount': '$99.99', 'order_id': '{{order_id}}', 'item_id': 'SKU789', 'reason': 'wrong size'}
+
+================================================================================
+
+
+[16/22] Testing: Check specific order status
+👤 User: I want to check my order status for order 12345
+🎯 Expected tools: ['track_order']
+
+🤖 Selected tools: ['track_order']
+   Reasoning: The user wants to check the status of an order with the ID "12345". Looking at the available tools, I have two potential options:
+
+1. `get_order` - This tool retrieves order details by order ID. It requires an order_id parameter.
+2. `track_order` - This tool tracks the status of an order. It also requires an order_id parameter.
+
+Since the user specifically wants to check the "order status", the `track_order` tool is the most appropriate choice as it's specifically designed for tracking order status. The `get_order` tool would provide general order details, which might include status but is broader in scope.
+
+I'll select the `track_order` tool and provide the order ID "12345" as the required argument.
+
+📊 Evaluation:
+   Expected: ['track_order']
+   Actual: ['track_order']
+   ✅ Correct: ['track_order']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ track_order(order_id='12345'): {'order_id': '12345', 'status': 'In transit', 'delivery_date': 'Tomorrow', 'tracking_number': 'TRK12345'}
+
+================================================================================
+
+
+[17/22] Testing: List customer orders
+👤 User: Show me all orders for customer@example.com
+🎯 Expected tools: ['list_orders']
+
+🤖 Selected tools: ['list_orders']
+   Reasoning: The user is asking to see all orders for a specific customer with the email address "customer@example.com". This is a straightforward request that requires retrieving order information for a particular customer.
+
+Looking at the available tools, the "list_orders" tool is designed specifically for this purpose. It allows listing all orders for a customer by their email address. The tool requires an email_address parameter, which in this case would be "customer@example.com".
+
+No other tools are needed for this request since we're only retrieving information, not modifying anything or performing additional operations. The "get_order" tool would be useful if we needed details for a specific order ID, but here we want all orders for a customer. The other tools (add_to_cart, search_products, track_order, return_item) are for different functionalities not related to simply listing orders.
+
+📊 Evaluation:
+   Expected: ['list_orders']
+   Actual: ['list_orders']
+   ✅ Correct: ['list_orders']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ list_orders(email_address='customer@example.com'): {'error': 'No orders for customer customer@example.com found.'}
+
+================================================================================
+
+
+[18/22] Testing: Add item to shopping cart
+👤 User: Add product SKU123 to my cart
+🎯 Expected tools: ['add_to_cart']
+
+🤖 Selected tools: ['add_to_cart']
+   Reasoning: The user wants to add a product with ID "SKU123" to their shopping cart. Looking at the available tools, the "add_to_cart" tool is the most appropriate for this task. This tool allows adding a product to the shopping cart by specifying a product ID and quantity.
+
+The "add_to_cart" tool requires:
+1. product_id (optional with default value of "{{selected_product_from_search}}")
+2. quantity (optional with default value of 1)
+
+Since the user specifically mentioned a product ID "SKU123", I should provide this as the product_id argument. The user didn't specify a quantity, so I can rely on the default quantity of 1.
+
+No other tools are needed for this simple request as the user just wants to add a specific product to their cart.
+
+📊 Evaluation:
+   Expected: ['add_to_cart']
+   Actual: ['add_to_cart']
+   ✅ Correct: ['add_to_cart']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ add_to_cart(product_id='SKU123', quantity=1): {'cart_total': 2, 'added': 'SKU123', 'quantity': 1, 'status': 'success'}
+
+================================================================================
+
+
+[19/22] Testing: Product search with price filter
+👤 User: Search for wireless headphones under $100
+🎯 Expected tools: ['search_products']
+
+🤖 Selected tools: ['search_products']
+   Reasoning: The user wants to search for wireless headphones with a price constraint of under $100. Let's analyze which tools we need to accomplish this:
+
+1. We need to search for products that match "wireless headphones" and have a price constraint.
+2. Looking at the available tools, the `search_products` tool is the most appropriate as it allows searching the product catalog with query parameters.
+3. We can use the following arguments for the search_products tool:
+   - query: "wireless headphones" to specify what we're looking for
+   - max_price: "100" to set the upper price limit
+   - category: We don't need to specify a category as "wireless headphones" in the query should be sufficient
+
+No other tools are needed at this stage since the user only asked to search for products, not to add them to cart, track an order, or perform any other actions.
+
+📊 Evaluation:
+   Expected: ['search_products']
+   Actual: ['search_products']
+   ✅ Correct: ['search_products']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ search_products(query='wireless headphones', category=None, max_price=100.0): {'products': "Found 10 products matching 'wireless headphones' (under $100.0)", 'count': 10, 'query': 'wireless headphones', 'filters': {'category': None, 'max_price': 100.0}}
+
+================================================================================
+
+
+[20/22] Testing: Track shipment status
+👤 User: Track my order ORD789
+🎯 Expected tools: ['track_order']
+
+🤖 Selected tools: ['track_order']
+   Reasoning: The user is requesting to track an order with the ID "ORD789". Looking at the available tools, the most appropriate tool for this request is the "track_order" tool, which is specifically designed to track the status of an order. This tool requires an "order_id" argument, which the user has provided as "ORD789".
+
+No other tools are needed for this straightforward request. The user is not asking to view detailed order information (which would use "get_order"), list all orders, add products to cart, search for products, or return items.
+
+📊 Evaluation:
+   Expected: ['track_order']
+   Actual: ['track_order']
+   ✅ Correct: ['track_order']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ track_order(order_id='ORD789'): {'order_id': 'ORD789', 'status': 'In transit', 'delivery_date': 'Tomorrow', 'tracking_number': 'TRKORD789'}
+
+================================================================================
+
+
+[21/22] Testing: Return defective item
+👤 User: Return item ITEM456 from order ORD123 because it's defective
+🎯 Expected tools: ['return_item']
+
+🤖 Selected tools: ['return_item']
+   Reasoning: Looking at the user's request, they want to return an item (ITEM456) from a specific order (ORD123) because it's defective. This is a straightforward return request with all the necessary information provided.
+
+From the available tools, I can see that the "return_item" tool is the most appropriate for this task. This tool requires three arguments:
+1. order_id - The user has provided this as "ORD123"
+2. item_id - The user has provided this as "ITEM456"
+3. reason - The user has stated the reason as "defective"
+
+The user has provided all the necessary information to use this tool directly. There's no need to use other tools like "get_order" first because we already have the required information for the return process.
+
+📊 Evaluation:
+   Expected: ['return_item']
+   Actual: ['return_item']
+   ✅ Correct: ['return_item']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ return_item(order_id='ORD123', item_id='ITEM456', reason='defective'): {'return_id': 'RET456', 'status': 'processing', 'refund_amount': '$99.99', 'order_id': 'ORD123', 'item_id': 'ITEM456', 'reason': 'defective'}
+
+================================================================================
+
+
+[22/22] Testing: Multi-step shopping process
+👤 User: I need to find laptops in my price range and add one to my cart
+🎯 Expected tools: ['search_products', 'add_to_cart']
+
+🤖 Selected tools: ['search_products', 'add_to_cart']
+   Reasoning: To help the user find laptops in their price range and add one to their cart, I need to analyze what tools are needed and in what order:
+
+1. First, the user needs to search for laptops within their price range. The `search_products` tool is perfect for this as it allows searching by query and filtering by max_price. Although the user didn't specify an exact price range, we'll need them to search for laptops and they can provide the price constraint as part of the search.
+
+2. After finding suitable laptops, the user wants to add one to their cart. The `add_to_cart` tool is designed for this purpose. Since the user will need to select a specific laptop from the search results first, we'll use this tool after the search.
+
+The user's request is a two-step process: first search, then add to cart. The execution order definitely matters here since we need to find products before we can add one to the cart.
+
+📊 Evaluation:
+   Expected: ['add_to_cart', 'search_products']
+   Actual: ['add_to_cart', 'search_products']
+   ✅ Correct: ['add_to_cart', 'search_products']
+   Precision: 1.00
+   Recall: 1.00
+   F1 Score: 1.00
+   ✨ Perfect match!
+
+🔧 Execution results:
+   ✓ search_products(query='laptops', category='electronics', max_price=None): {'products': "Found 10 products matching 'laptops' (category: electronics)", 'count': 10, 'query': 'laptops', 'filters': {'category': 'electronics', 'max_price': None}}
+   ✓ add_to_cart(product_id='{{selected_product_from_search}}', quantity=1): {'cart_total': 2, 'added': 'LAPTOP123', 'quantity': 1, 'status': 'success', 'note': 'Mock execution with placeholder: {{selected_product_from_search}}'}
+
+================================================================================
+
+
+------------------------------------------------------------
+               📊 OVERALL PERFORMANCE SUMMARY                
+------------------------------------------------------------
+Total tests       : 22
+Passed tests      : 22
+Perfect matches   : 18/22 (81.8%)
+Average precision : 91.67%
+Average recall    : 100.00%
+Average F1 score  : 94.55%
+Success rate      : 100.0%
+Total duration    : 0.13s
+------------------------------------------------------------
+
+Performance Visualization:
+Precision: [█████████████████████████████████████████████░░░░░] 91.7%
+Recall:    [██████████████████████████████████████████████████] 100.0%
+F1 Score:  [███████████████████████████████████████████████░░░] 94.5%
+
+📦 Loaded Tools (6): ['get_order', 'list_orders', 'add_to_cart', 'search_products', 'track_order', 'return_item']
+✓ 
+✅ Multi-tool demo complete!
+
+💾 Results saved to: test_results_new.json

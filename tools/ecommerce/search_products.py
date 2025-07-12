@@ -1,14 +1,15 @@
-"""Search products tool implementation."""
-from typing import List, Optional
+"""Search products tool implementation using the unified base class."""
+from typing import List, Optional, ClassVar, Dict, Any, Type
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class SearchProductsTool(BaseTool):
     """Tool for searching products in the catalog."""
+    
+    NAME: ClassVar[str] = "search_products"
+    MODULE: ClassVar[str] = "tools.ecommerce.search_products"
     
     class Arguments(BaseModel):
         """Arguments for searching products."""
@@ -16,12 +17,9 @@ class SearchProductsTool(BaseTool):
         category: Optional[str] = Field(default=None, description="Product category")
         max_price: Optional[float] = Field(default=None, ge=0, description="Maximum price")
     
-    metadata = ToolMetadata(
-        name="search_products",
-        description="Search for products in the catalog",
-        category="ecommerce",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Search for products in the catalog"
+    args_model: Type[BaseModel] = Arguments
     
     def execute(self, query: str, category: str = None, max_price: float = None) -> dict:
         """Execute the tool to search products."""

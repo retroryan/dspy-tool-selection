@@ -49,17 +49,13 @@ class ToolSet(BaseModel):
     
     def load(self) -> None:
         """
-        Registers all tool classes defined in this tool set's configuration
-        with the global tool registry.
-
-        Tools are only registered if they are not already present in the registry,
-        preventing duplicate registrations.
+        Legacy method - registration is now handled explicitly via factory functions.
+        
+        This method is kept for backward compatibility but does nothing.
+        Use the factory functions in shared/tool_set_registry.py instead.
         """
-        from tool_selection.registry import registry  # Import here to avoid circular dependency
-        for tool_class in self.config.tool_classes:
-            # Only register the tool if it hasn't been registered already
-            if not registry.get_tool(tool_class.NAME):
-                registry.register(tool_class)
+        # No-op - explicit registration is now handled by factory functions
+        pass
     
     def get_loaded_tools(self) -> List[str]:
         """
@@ -201,6 +197,104 @@ class ProductivityToolSet(ToolSet):
         ]
 
 
+class EcommerceToolSet(ToolSet):
+    """
+    A specific tool set for ecommerce and shopping-related tools.
+
+    This set includes tools for order management, product search, cart operations,
+    and customer support functionalities.
+    """
+    NAME: ClassVar[str] = "ecommerce"  # The unique name for this tool set
+    
+    def __init__(self):
+        """
+        Initializes the EcommerceToolSet, defining its name, description,
+        and the specific tool classes it encompasses.
+        """
+        # Lazy import tool classes to avoid circular dependencies
+        from tools.ecommerce.get_order import GetOrderTool
+        from tools.ecommerce.list_orders import ListOrdersTool
+        from tools.ecommerce.add_to_cart import AddToCartTool
+        from tools.ecommerce.search_products import SearchProductsTool
+        from tools.ecommerce.track_order import TrackOrderTool
+        from tools.ecommerce.return_item import ReturnItemTool
+        
+        super().__init__(
+            config=ToolSetConfig(
+                name=self.NAME,
+                description="E-commerce and shopping tools for order management, product search, and customer support",
+                tool_classes=[
+                    GetOrderTool,
+                    ListOrdersTool,
+                    AddToCartTool,
+                    SearchProductsTool,
+                    TrackOrderTool,
+                    ReturnItemTool
+                ]
+            )
+        )
+    
+    @classmethod
+    def get_test_cases(cls) -> List[ToolSetTestCase]:
+        """
+        Returns a predefined list of test cases for ecommerce scenarios.
+
+        These cases cover various interactions with ecommerce tools, including
+        order management, product search, and customer support.
+        """
+        return [
+            ToolSetTestCase(
+                request="I want to check my order status for order 12345",
+                expected_tools=["track_order"],
+                description="Check specific order status",
+                tool_set="ecommerce",
+                scenario="order_management"
+            ),
+            ToolSetTestCase(
+                request="Show me all orders for customer@example.com",
+                expected_tools=["list_orders"],
+                description="List customer orders",
+                tool_set="ecommerce",
+                scenario="order_management"
+            ),
+            ToolSetTestCase(
+                request="Add product SKU123 to my cart",
+                expected_tools=["add_to_cart"],
+                description="Add item to shopping cart",
+                tool_set="ecommerce",
+                scenario="shopping"
+            ),
+            ToolSetTestCase(
+                request="Search for wireless headphones under $100",
+                expected_tools=["search_products"],
+                description="Product search with price filter",
+                tool_set="ecommerce",
+                scenario="shopping"
+            ),
+            ToolSetTestCase(
+                request="Track my order ORD789",
+                expected_tools=["track_order"],
+                description="Track shipment status",
+                tool_set="ecommerce",
+                scenario="order_management"
+            ),
+            ToolSetTestCase(
+                request="Return item ITEM456 from order ORD123 because it's defective",
+                expected_tools=["return_item"],
+                description="Return defective item",
+                tool_set="ecommerce",
+                scenario="customer_support"
+            ),
+            ToolSetTestCase(
+                request="I need to find laptops in my price range and add one to my cart",
+                expected_tools=["search_products", "add_to_cart"],
+                description="Multi-step shopping process",
+                tool_set="ecommerce",
+                scenario="shopping"
+            )
+        ]
+
+
 class ToolSetRegistry(BaseModel):
     """
     A central registry for managing and loading different tool sets.
@@ -294,8 +388,5 @@ class ToolSetRegistry(BaseModel):
 
 # Global tool set registry instance
 # This instance is used throughout the application to manage and access tool sets.
+# NOTE: All tool set registration is now explicit via factory functions
 tool_set_registry = ToolSetRegistry()
-
-# Register default tool sets upon import to make them immediately available
-tool_set_registry.register(TreasureHuntToolSet())
-tool_set_registry.register(ProductivityToolSet())

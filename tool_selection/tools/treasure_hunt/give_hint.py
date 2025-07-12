@@ -9,10 +9,8 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from tool_selection.base_tool import BaseTool, ToolTestCase
-from tool_selection.registry import register_tool
 
 
-@register_tool
 class GiveHintTool(BaseTool):
     """
     A tool for giving progressive hints about the treasure location.

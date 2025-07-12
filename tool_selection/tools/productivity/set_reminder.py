@@ -10,10 +10,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 from tool_selection.base_tool import BaseTool, ToolTestCase
-from tool_selection.registry import register_tool
 
 
-@register_tool
 class SetReminderTool(BaseTool):
     """
     A tool for setting reminders for the user.

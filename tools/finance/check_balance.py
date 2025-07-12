@@ -3,10 +3,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
 
 
-@register_tool
 class CheckBalanceTool(BaseTool):
     """Tool for checking account balance."""
     

@@ -1,37 +1,65 @@
+"""Get order tool implementation using the unified base class."""
 import json
 from pathlib import Path
-from typing import Dict, Any
-from ..validators import validate_args, required_string
+from typing import List, ClassVar, Dict, Any, Type
+from pydantic import BaseModel, Field
+
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-# this is made to demonstrate functionality but it could just as durably be an API call
-# called as part of a temporal activity with automatic retries
-def get_order(args: Dict[str, Any]) -> Dict[str, Any]:
-    # Define validation rules
-    validators = [
-        required_string("order_id", error_message="Order ID is required")
-    ]
+class GetOrderTool(BaseTool):
+    """Tool for retrieving order information by order ID."""
     
-    # Validate arguments
-    validated = validate_args(args, validators)
-    if "error" in validated:
-        return validated
+    NAME: ClassVar[str] = "get_order"
+    MODULE: ClassVar[str] = "tools.ecommerce.get_order"
     
-    order_id = validated["order_id"]
+    class Arguments(BaseModel):
+        """Argument validation model."""
+        order_id: str = Field(
+            ..., 
+            min_length=1, 
+            description="The order ID to retrieve"
+        )
+    
+    # Tool definition as instance attributes
+    description: str = "Get order details by order ID"
+    args_model: Type[BaseModel] = Arguments
+    
+    def execute(self, order_id: str) -> Dict[str, Any]:
+        """Execute the tool to get order details."""
+        file_path = (
+            Path(__file__).resolve().parent.parent / "data" / "customer_order_data.json"
+        )
+        if not file_path.exists():
+            return {"error": "Data file not found."}
 
-    file_path = (
-        Path(__file__).resolve().parent.parent / "data" / "customer_order_data.json"
-    )
-    if not file_path.exists():
-        return {"error": "Data file not found."}
+        with open(file_path, "r") as file:
+            data = json.load(file)
+        order_list = data["orders"]
 
-    with open(file_path, "r") as file:
-        data = json.load(file)
-    order_list = data["orders"]
+        for order in order_list:
+            if order["id"] == order_id:
+                return order
 
-    for order in order_list:
-        if order["id"] == order_id:
-            return order
-
-    return_msg = "Order " + order_id + " not found."
-    return {"error": return_msg}
+        return {"error": f"Order {order_id} not found."}
+    
+    @classmethod
+    def get_test_cases(cls) -> List[ToolTestCase]:
+        """Return test cases for this tool."""
+        return [
+            ToolTestCase(
+                request="Get order details for order 12345",
+                expected_tools=["get_order"],
+                description="Basic order lookup"
+            ),
+            ToolTestCase(
+                request="I need to check my order ORD-001",
+                expected_tools=["get_order"],
+                description="Order status check"
+            ),
+            ToolTestCase(
+                request="Show me information about order ABC123",
+                expected_tools=["get_order"],
+                description="Order information request"
+            )
+        ]

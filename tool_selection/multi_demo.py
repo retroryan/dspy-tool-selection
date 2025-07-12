@@ -1,5 +1,8 @@
 """Multi-tool DSPy selection demo using the new centralized registry.
 
+⚠️ DEPRECATED: This demo is deprecated in favor of agent_loop_demo.py which uses the new agentic loop architecture.
+   Please use agent_loop_demo.py for all new development and testing.
+
 This demo tests the model's ability to:
 1. Select the correct tool from many options
 2. Handle ambiguous requests
@@ -20,7 +23,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 # Import new registry and models
 from .registry import registry
 from .base_tool import ToolTestCase
-from .tool_sets import TreasureHuntToolSet, ProductivityToolSet, ToolSetRegistry
+from .tool_sets import TreasureHuntToolSet, ProductivityToolSet, EcommerceToolSet, ToolSetRegistry
 
 # Import shared utilities
 from shared_utils.llm_factory import setup_llm
@@ -104,8 +107,8 @@ def execute_decision(decision: MultiToolDecision) -> List[dict]:
         decision (MultiToolDecision): The decision object containing tool calls to execute.
 
     Returns:
-        List[dict]: A list of dictionaries, each containing the tool name and its result
-                    or an error message if execution failed.
+        List[dict]: A list of dictionaries, each containing the tool name, parameters,
+                    and its result or an error message if execution failed.
     """
     results = []
     
@@ -118,18 +121,21 @@ def execute_decision(decision: MultiToolDecision) -> List[dict]:
             )
             results.append({
                 "tool": tool_call.tool_name,
+                "parameters": tool_call.arguments,
                 "result": result
             })
         except ValueError as e:
             # Handle cases where the tool name is unknown or arguments are invalid
             results.append({
                 "tool": tool_call.tool_name,
+                "parameters": tool_call.arguments,
                 "error": str(e)
             })
         except Exception as e:
             # Catch any other unexpected errors during tool execution
             results.append({
                 "tool": tool_call.tool_name,
+                "parameters": tool_call.arguments,
                 "error": f"Execution error: {str(e)}"
             })
     
@@ -246,11 +252,17 @@ def run_demo(predict=False, tool_sets=None):
                 
                 print(f"\n🔧 Execution results:")
                 for result in results:
+                    # Format parameters for display
+                    params_str = ""
+                    if 'parameters' in result and result['parameters']:
+                        params_list = [f"{k}={repr(v)}" for k, v in result['parameters'].items()]
+                        params_str = f"({', '.join(params_list)})"
+                    
                     if 'error' in result:
-                        error_msg = f"{result['tool']}: {result['error']}"
+                        error_msg = f"{result['tool']}{params_str}: {result['error']}"
                         print(f"   {formatter.error_message(error_msg)}")
                     else:
-                        success_msg = f"{result['tool']}: {result['result']}"
+                        success_msg = f"{result['tool']}{params_str}: {result['result']}"
                         print(f"   {formatter.success_message(success_msg)}")
             except Exception as e:
                 execution_error = str(e)
@@ -383,9 +395,9 @@ def createToolSetRegistry() -> ToolSetRegistry:
     tool_set_registry = ToolSetRegistry()
     tool_set_registry.register(TreasureHuntToolSet())
     tool_set_registry.register(ProductivityToolSet())
+    tool_set_registry.register(EcommerceToolSet())
     # TODO: Uncomment when tools are updated
     # tool_set_registry.register(EventsToolSet())
-    # tool_set_registry.register(EcommerceToolSet())
     # tool_set_registry.register(FinanceToolSet())
     # tool_set_registry.register(MultiDomainToolSet())
     return tool_set_registry

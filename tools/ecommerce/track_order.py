@@ -1,25 +1,23 @@
-"""Track order tool implementation."""
-from typing import List
+"""Track order tool implementation using the unified base class."""
+from typing import List, ClassVar, Dict, Any, Type
 from pydantic import BaseModel, Field
 
-from tool_selection.base_tool import BaseTool, ToolTestCase, ToolMetadata
-from tool_selection.registry import register_tool
+from tool_selection.base_tool import BaseTool, ToolTestCase
 
 
-@register_tool
 class TrackOrderTool(BaseTool):
     """Tool for tracking order status."""
+    
+    NAME: ClassVar[str] = "track_order"
+    MODULE: ClassVar[str] = "tools.ecommerce.track_order"
     
     class Arguments(BaseModel):
         """Arguments for tracking an order."""
         order_id: str = Field(..., description="Order ID")
     
-    metadata = ToolMetadata(
-        name="track_order",
-        description="Track the status of an order",
-        category="ecommerce",
-        args_model=Arguments
-    )
+    # Tool definition as instance attributes
+    description: str = "Track the status of an order"
+    args_model: Type[BaseModel] = Arguments
     
     def execute(self, order_id: str) -> dict:
         """Execute the tool to track an order."""
