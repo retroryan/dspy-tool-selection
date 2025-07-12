@@ -14,7 +14,8 @@ show_usage() {
     echo "  --providers \"p1,p2\"     Comma-separated list of providers to test"
     echo "                          Available: claude, openai"
     echo "  --models \"model1,model2\" Comma-separated list of specific models to test"
-    echo "                          Default: First 2 models from each provider"
+    echo "                          You can specify any model IDs supported by the providers"
+    echo "  --advanced              Use advanced agentic loop with enhanced reasoning"
     echo "  -h, --help              Show this help message"
     echo ""
     echo "Examples:"
@@ -24,8 +25,11 @@ show_usage() {
     echo "  # Test specific tool set with Claude models only"
     echo "  ./run_cloud_model_comparison.sh treasure_hunt --providers \"claude\""
     echo ""
-    echo "  # Test specific models"
-    echo "  ./run_cloud_model_comparison.sh ecommerce --models \"claude-3-opus-20240229,gpt-4-turbo-preview\""
+    echo "  # Test specific models with advanced mode"
+    echo "  ./run_cloud_model_comparison.sh ecommerce --models \"claude-3-haiku-20240307\" --advanced"
+    echo ""
+    echo "  # Test with advanced agentic loop"
+    echo "  ./run_cloud_model_comparison.sh ecommerce --advanced"
     exit 0
 }
 
@@ -33,6 +37,7 @@ show_usage() {
 TOOL_SET=""
 PROVIDERS=""
 MODELS=""
+ADVANCED_MODE=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -44,6 +49,10 @@ while [[ $# -gt 0 ]]; do
         --models)
             MODELS="$2"
             shift 2
+            ;;
+        --advanced)
+            ADVANCED_MODE=true
+            shift
             ;;
         -h|--help)
             show_usage
@@ -70,6 +79,17 @@ done
 echo "☁️  DSPy Agentic Loop Cloud Model Comparison"
 echo "=========================================="
 echo ""
+
+# Set advanced mode if enabled
+if [ "$ADVANCED_MODE" = true ]; then
+    export AGENT_USE_ADVANCED=true
+    echo "🚀 Advanced mode enabled"
+    echo "  • Tool result analysis"
+    echo "  • Goal tracking and progress monitoring"
+    echo "  • Dynamic strategy adaptation"
+    echo "  • Enhanced error recovery"
+    echo ""
+fi
 
 # Check if cloud_test.env exists
 if [ ! -f "cloud_test.env" ]; then
@@ -113,6 +133,12 @@ if [ -n "$MODELS" ]; then
     CMD="$CMD --models \"$MODELS\""
 else
     echo "🤖 Using default models: First 2 from each provider"
+fi
+
+if [ "$ADVANCED_MODE" = true ]; then
+    echo "🔧 Mode: Advanced Agentic Loop"
+else
+    echo "🔧 Mode: Basic Agentic Loop"
 fi
 
 # Run the comparison

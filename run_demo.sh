@@ -8,12 +8,17 @@ echo ""
 
 # Parse command line arguments
 DEBUG_MODE=false
+ADVANCED_MODE=false
 TOOL_SET=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --debug)
             DEBUG_MODE=true
+            shift
+            ;;
+        --advanced)
+            ADVANCED_MODE=true
             shift
             ;;
         -h|--help)
@@ -25,13 +30,15 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --debug              Enable debug mode (show prompts and LLM responses)"
+            echo "  --advanced           Use advanced agentic loop with enhanced reasoning"
             echo "  -h, --help           Show this help message"
             echo ""
             echo "Examples:"
             echo "  ./run_demo.sh                    # Default: productivity tool set"
             echo "  ./run_demo.sh treasure_hunt      # Treasure hunt tool set"
             echo "  ./run_demo.sh productivity --debug  # Productivity tools with debug"
-            echo "  ./run_demo.sh ecommerce          # E-commerce tools"
+            echo "  ./run_demo.sh ecommerce --advanced  # E-commerce tools with advanced mode"
+            echo "  ./run_demo.sh ecommerce --debug --advanced  # Both debug and advanced"
             exit 0
             ;;
         --*)
@@ -63,6 +70,17 @@ if [ "$DEBUG_MODE" = true ]; then
     echo ""
 fi
 
+# Set advanced mode
+if [ "$ADVANCED_MODE" = true ]; then
+    export AGENT_USE_ADVANCED=true
+    echo "🚀 Advanced mode enabled"
+    echo "  • Tool result analysis"
+    echo "  • Goal tracking and progress monitoring"
+    echo "  • Dynamic strategy adaptation"
+    echo "  • Enhanced error recovery"
+    echo ""
+fi
+
 # Run setup if needed
 if [ ! -d ".venv" ] || [ ! -f ".env" ]; then
     echo "Running setup first..."
@@ -81,12 +99,21 @@ if [ -n "$TOOL_SET" ]; then
 else
     echo "📦 Tool set: productivity (default)"
 fi
+
+if [ "$ADVANCED_MODE" = true ]; then
+    echo "🤖 Mode: Advanced"
+else
+    echo "🤖 Mode: Basic"
+fi
 echo ""
 
 # Build command
 CMD="poetry run python -m agentic_loop.agent_loop_demo"
 if [ -n "$TOOL_SET" ]; then
     CMD="$CMD $TOOL_SET"
+fi
+if [ "$ADVANCED_MODE" = true ]; then
+    CMD="$CMD --advanced"
 fi
 
 # Execute command

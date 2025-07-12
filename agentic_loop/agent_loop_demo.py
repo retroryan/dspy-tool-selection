@@ -84,12 +84,13 @@ def create_tool_set_registry(tool_set_name: str) -> ToolSetRegistry:
     return registry
 
 
-def run_agent_loop_demo(tool_set_name: str = "productivity") -> Dict[str, Any]:
+def run_agent_loop_demo(tool_set_name: str = "productivity", use_advanced: bool = False) -> Dict[str, Any]:
     """
     Run the agent loop demo with the specified tool set.
     
     Args:
         tool_set_name: Name of the tool set to use
+        use_advanced: Whether to use advanced reasoning capabilities
         
     Returns:
         Dictionary containing summary and detailed results
@@ -98,9 +99,11 @@ def run_agent_loop_demo(tool_set_name: str = "productivity") -> Dict[str, Any]:
     formatter = ConsoleFormatter()
     metrics = ToolSelectionMetrics()
     
-    print(formatter.section_header("🚀 Agent Loop Demo - Agentic Architecture"))
+    mode_str = "Advanced" if use_advanced else "Basic"
+    print(formatter.section_header(f"🚀 Agent Loop Demo - {mode_str} Agentic Architecture"))
     print(f"Testing agentic loop with multi-tool selection capabilities")
-    print(f"Tool Set: {tool_set_name}\n")
+    print(f"Tool Set: {tool_set_name}")
+    print(f"Mode: {mode_str}\n")
     
     # Setup LLM
     try:
@@ -124,10 +127,29 @@ def run_agent_loop_demo(tool_set_name: str = "productivity") -> Dict[str, Any]:
     max_iterations = int(os.getenv('AGENT_MAX_ITERATIONS', '5'))
     timeout_seconds = float(os.getenv('AGENT_TIMEOUT_SECONDS', '60.0'))
     
-    agent_loop = ManualAgentLoop(
-        tool_names=tool_names,
-        max_iterations=max_iterations  # Allow multiple iterations for complex tasks
-    )
+    # Check if advanced mode is requested via env var
+    if os.getenv('AGENT_USE_ADVANCED', '').lower() == 'true':
+        use_advanced = True
+    
+    if use_advanced:
+        # Use advanced agent loop with enhanced reasoning
+        from agentic_loop.advanced import AdvancedManualAgentLoop
+        
+        # Create advanced agent loop
+        agent_loop = AdvancedManualAgentLoop(
+            tool_names=tool_names,
+            max_iterations=max_iterations
+        )
+        print(f"Using Advanced Agent Loop with enhanced capabilities:")
+        print(f"  - Tool result analysis")
+        print(f"  - Goal tracking and progress monitoring") 
+        print(f"  - Dynamic strategy adaptation")
+        print(f"  - Enhanced error recovery\n")
+    else:
+        agent_loop = ManualAgentLoop(
+            tool_names=tool_names,
+            max_iterations=max_iterations  # Allow multiple iterations for complex tasks
+        )
     
     activity_manager = ActivityManager(
         agent_loop=agent_loop,
@@ -321,11 +343,16 @@ def main():
         choices=["treasure_hunt", "productivity", "ecommerce"],
         help="Tool set to load (default: productivity)"
     )
+    parser.add_argument(
+        "--advanced",
+        action="store_true",
+        help="Use advanced agentic loop with enhanced reasoning capabilities"
+    )
     
     args = parser.parse_args()
     
     # Run the demo
-    results = run_agent_loop_demo(args.tool_set)
+    results = run_agent_loop_demo(args.tool_set, use_advanced=args.advanced)
     
     # Save results to JSON
     if 'error' not in results:

@@ -53,7 +53,7 @@ class ManualAgentLoop(dspy.Module):
         """
         return self.get_next_action(conversation_state)
     
-    def get_next_action(self, conversation_state: ConversationState) -> ActionDecision:
+    def get_next_action(self, conversation_state: ConversationState, **kwargs) -> ActionDecision:
         """
         Main entry point for external ActivityManager control.
         
@@ -86,7 +86,8 @@ class ManualAgentLoop(dspy.Module):
                 last_tool_results=formatted_tool_results,
                 available_tools=available_tools,
                 iteration_count=conversation_state.iteration_count,
-                max_iterations=conversation_state.max_iterations or self.max_iterations
+                max_iterations=conversation_state.max_iterations or self.max_iterations,
+                **kwargs  # Pass additional context to reasoning
             )
             
             # Convert reasoning output to action decision
@@ -99,7 +100,7 @@ class ManualAgentLoop(dspy.Module):
     def _perform_core_reasoning(self, user_query: str, goal: Optional[str],
                               conversation_history: str, last_tool_results: Optional[str],
                               available_tools: str, iteration_count: int,
-                              max_iterations: int) -> ReasoningOutput:
+                              max_iterations: int, **kwargs) -> ReasoningOutput:
         """
         Perform core reasoning using AgentReasoner.
         
@@ -123,7 +124,8 @@ class ManualAgentLoop(dspy.Module):
             last_tool_results=last_tool_results,
             available_tools=available_tools,
             iteration_count=iteration_count,
-            max_iterations=max_iterations
+            max_iterations=max_iterations,
+            **kwargs  # Pass additional context to reasoner
         )
         
         return result.reasoning_output

@@ -25,14 +25,15 @@ from agentic_loop.agent_loop_demo import run_agent_loop_demo
 from shared_utils import ConsoleFormatter
 
 
-# Define available cloud models
+# Default cloud models (used when no specific models are requested)
+# Users can specify any model IDs - these are just the defaults
 CLOUD_MODELS = {
     'claude': [
-        ('claude-3-opus-20240229', 'Claude 3 Opus'),
+        ('claude-3-haiku-20240307', 'Claude 3 Haiku'),
         ('claude-3-sonnet-20240229', 'Claude 3 Sonnet'),
     ],
     'openai': [
-        ('gpt-4-turbo-preview', 'GPT-4 Turbo'),
+        ('gpt-4', 'GPT-4'),
         ('gpt-3.5-turbo', 'GPT-3.5 Turbo'),
     ]
 }
@@ -201,23 +202,18 @@ def main():
         model_specs = None
     
     if model_specs:
-        # Process specified models
+        # Process specified models - auto-detect provider from model name
         for model_spec in model_specs:
-            # Try to match against known models
-            found = False
-            for provider, model_list in CLOUD_MODELS.items():
-                for model_id, model_name in model_list:
-                    if model_id == model_spec:
-                        models_to_test.append((provider, model_id, model_name))
-                        found = True
-                        break
-            if not found:
-                print(f"⚠️  Warning: Unknown model {model_spec}, will try anyway")
-                # Guess provider based on model name
-                if 'claude' in model_spec:
-                    models_to_test.append(('claude', model_spec, model_spec))
-                elif 'gpt' in model_spec:
-                    models_to_test.append(('openai', model_spec, model_spec))
+            # Auto-detect provider based on model naming conventions
+            if 'claude' in model_spec.lower():
+                provider = 'claude'
+            elif 'gpt' in model_spec.lower() or 'o1' in model_spec.lower():
+                provider = 'openai'
+            else:
+                # Default fallback - could be extended for other providers
+                provider = 'claude' if model_spec.startswith('claude') else 'openai'
+            
+            models_to_test.append((provider, model_spec, model_spec))
     else:
         # Use default models for each provider
         for provider in providers_to_test:

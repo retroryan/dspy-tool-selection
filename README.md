@@ -39,6 +39,12 @@ ollama pull gemma3:27b
 # Run with debug mode to see DSPy prompts
 ./run_demo.sh --debug
 
+# Run with advanced agentic loop (enhanced reasoning)
+./run_demo.sh --advanced
+
+# Combine options
+./run_demo.sh ecommerce --debug --advanced
+
 # Available tool sets: treasure_hunt, productivity, ecommerce
 ```
 
@@ -67,6 +73,53 @@ Key components:
 - **ActivityManager**: Manages execution flow, iterations, and tool calls
 - **ToolRegistry**: Type-safe registry for tool registration and execution
 
+## Advanced Agentic Loop
+
+The project includes an advanced agentic loop implementation with enhanced reasoning capabilities:
+
+### Advanced Features
+
+- **Tool Result Analysis**: Analyzes tool execution results to determine next steps
+- **Goal Tracking**: Monitors progress toward task completion with sub-goal decomposition
+- **Dynamic Strategy Adaptation**: Adjusts reasoning strategy based on current progress
+- **Enhanced Error Recovery**: Multiple recovery strategies for failed tool executions
+- **Confidence Estimation**: Provides confidence scores for reasoning decisions
+
+### When to Use Advanced Mode
+
+The advanced mode is particularly beneficial for:
+- Multi-step tasks requiring several tool executions
+- Complex workflows where tools depend on each other
+- Tasks where partial completion detection is important
+- Scenarios requiring adaptive behavior based on intermediate results
+
+### Usage
+
+```bash
+# Enable advanced mode with command line flag
+./run_demo.sh ecommerce --advanced
+
+# Enable via environment variable
+AGENT_USE_ADVANCED=true ./run_demo.sh ecommerce
+
+# Combine with other options
+./run_demo.sh ecommerce --debug --advanced
+
+# Use with cloud model testing
+./run_cloud_model_comparison.sh ecommerce --advanced
+```
+
+### Configuration
+
+Advanced mode supports additional environment variables:
+
+```bash
+# .env file
+AGENT_USE_ADVANCED=true
+AGENT_MAX_ITERATIONS=10        # Higher default for complex tasks
+AGENT_TIMEOUT_SECONDS=120.0    # Longer timeout for multi-step tasks
+```
+
 ## Detailed Usage
 
 ### Running with Different Tool Sets
@@ -85,6 +138,12 @@ The demo supports multiple tool sets, each containing related tools:
 
 # With debug output
 ./run_demo.sh treasure_hunt --debug
+
+# With advanced reasoning capabilities
+./run_demo.sh ecommerce --advanced
+
+# Both debug and advanced mode
+./run_demo.sh ecommerce --debug --advanced
 ```
 
 ### Output and Results
@@ -153,13 +212,19 @@ cp cloud_test.env.example cloud_test.env
 ./run_cloud_model_comparison.sh ecommerce
 
 # 3. Override models via command line
-./run_cloud_model_comparison.sh treasure_hunt --models "claude-3-5-sonnet-20241022,gpt-4"
+./run_cloud_model_comparison.sh treasure_hunt --models "claude-3-haiku-20240307,gpt-4"
 
 # 4. Test specific providers only
 ./run_cloud_model_comparison.sh productivity --providers "claude"
 
 # 5. Combine provider and model selection
 ./run_cloud_model_comparison.sh ecommerce --providers "openai" --models "gpt-3.5-turbo,gpt-4"
+
+# 6. Test with advanced agentic loop
+./run_cloud_model_comparison.sh ecommerce --advanced
+
+# 7. Test specific models with advanced reasoning
+./run_cloud_model_comparison.sh ecommerce --models "claude-3-haiku-20240307" --advanced
 ```
 
 ##### Configuring cloud_test.env
@@ -172,9 +237,9 @@ ANTHROPIC_API_KEY=your-claude-api-key
 OPENAI_API_KEY=your-openai-api-key
 
 # Models to test (optional - will use these if --models not specified)
-# Available Claude models: claude-3-5-sonnet-20241022, claude-3-haiku-20240307, claude-3-opus-20240229
-# Available OpenAI models: gpt-4, gpt-4-turbo-preview, gpt-3.5-turbo
-CLOUD_TEST_MODELS=claude-3-5-sonnet-20241022,gpt-3.5-turbo,gpt-4,claude-3-haiku-20240307
+# You can specify any model IDs supported by your API providers
+# Examples: claude-3-haiku-20240307, claude-3-5-sonnet-20241022, gpt-4, gpt-4-turbo, o1-preview
+CLOUD_TEST_MODELS=claude-3-haiku-20240307,claude-3-sonnet-20240229,gpt-3.5-turbo,gpt-4
 
 # LLM settings
 LLM_TEMPERATURE=0.7
@@ -334,11 +399,16 @@ poetry run pytest --cov=agentic_loop --cov=shared
 | `LLM_TEMPERATURE` | Generation temperature | `0.7` |
 | `LLM_MAX_TOKENS` | Maximum tokens | `1024` |
 | `DSPY_DEBUG` | Show DSPy prompts/responses | `false` |
+| `AGENT_USE_ADVANCED` | Enable advanced agentic loop | `false` |
+| `AGENT_MAX_ITERATIONS` | Maximum agent loop iterations | `5` |
+| `AGENT_TIMEOUT_SECONDS` | Maximum execution time per activity | `60.0` |
 
 ## Next Steps
 
 - Explore different tool sets and their capabilities
+- Try the advanced agentic loop for complex multi-step tasks
 - Create custom tools for your use case
 - Experiment with different LLM providers
 - Adjust iteration limits and reasoning strategies
 - Build complex multi-step workflows
+- Compare basic vs advanced mode performance
