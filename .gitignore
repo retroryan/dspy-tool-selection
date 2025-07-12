@@ -78,6 +78,7 @@ coverage.xml
 
 # Project specific
 model_test_results/
+test_results/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -114,3 +115,4 @@ cython_debug/
 *.json
 ollama.env
 cloud.env
+cloud_test.env

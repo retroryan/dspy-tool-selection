@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# DSPy Agentic Loop Model Comparison Runner
+# DSPy Agentic Loop Cloud Model Comparison Runner
 
 # Function to show usage
 show_usage() {
@@ -11,29 +11,36 @@ show_usage() {
     echo "                          Available: treasure_hunt, productivity, ecommerce"
     echo ""
     echo "Options:"
-    echo "  --models \"model1,model2\"  Comma-separated list of models to test"
-    echo "                          Default: \"gemma3:27b,llama3.1:8b\""
+    echo "  --providers \"p1,p2\"     Comma-separated list of providers to test"
+    echo "                          Available: claude, openai"
+    echo "  --models \"model1,model2\" Comma-separated list of specific models to test"
+    echo "                          Default: First 2 models from each provider"
     echo "  -h, --help              Show this help message"
     echo ""
     echo "Examples:"
-    echo "  # Test default models on productivity tool set"
-    echo "  ./run_model_comparison.sh"
+    echo "  # Test default models from all available providers"
+    echo "  ./run_cloud_model_comparison.sh"
     echo ""
-    echo "  # Test specific models on treasure hunt"
-    echo "  ./run_model_comparison.sh treasure_hunt --models \"gemma3:27b,llama3.1:8b\""
+    echo "  # Test specific tool set with Claude models only"
+    echo "  ./run_cloud_model_comparison.sh treasure_hunt --providers \"claude\""
     echo ""
-    echo "  # Test single model on ecommerce"
-    echo "  ./run_model_comparison.sh ecommerce --models \"gemma3:27b\""
+    echo "  # Test specific models"
+    echo "  ./run_cloud_model_comparison.sh ecommerce --models \"claude-3-opus-20240229,gpt-4-turbo-preview\""
     exit 0
 }
 
 # Default values
 TOOL_SET=""
+PROVIDERS=""
 MODELS=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --providers)
+            PROVIDERS="$2"
+            shift 2
+            ;;
         --models)
             MODELS="$2"
             shift 2
@@ -60,12 +67,21 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "🦙 DSPy Agentic Loop Model Comparison"
-echo "===================================="
+echo "☁️  DSPy Agentic Loop Cloud Model Comparison"
+echo "=========================================="
 echo ""
 
+# Check if cloud_test.env exists
+if [ ! -f "cloud_test.env" ]; then
+    echo "❌ cloud_test.env not found"
+    echo "   Please create cloud_test.env with your API keys:"
+    echo "   - ANTHROPIC_API_KEY for Claude models"
+    echo "   - OPENAI_API_KEY for OpenAI models"
+    exit 1
+fi
+
 # Run setup if needed
-if [ ! -d ".venv" ] || [ ! -f ".env" ]; then
+if [ ! -d ".venv" ]; then
     echo "Running setup first..."
     ./setup.sh
     if [ $? -ne 0 ]; then
@@ -76,7 +92,7 @@ if [ ! -d ".venv" ] || [ ! -f ".env" ]; then
 fi
 
 # Build command
-CMD="poetry run python -m agentic_loop.run_model_comparison"
+CMD="poetry run python -m agentic_loop.run_cloud_model_comparison"
 
 # Add tool set if specified
 if [ -n "$TOOL_SET" ]; then
@@ -85,15 +101,22 @@ else
     echo "📦 Using default tool set: productivity"
 fi
 
+# Add providers if specified
+if [ -n "$PROVIDERS" ]; then
+    CMD="$CMD --providers \"$PROVIDERS\""
+else
+    echo "☁️  Using all available providers with API keys"
+fi
+
 # Add models if specified
 if [ -n "$MODELS" ]; then
     CMD="$CMD --models \"$MODELS\""
 else
-    echo "🤖 Using default models: gemma3:27b,llama3.1:8b"
+    echo "🤖 Using default models: First 2 from each provider"
 fi
 
 # Run the comparison
 echo ""
-echo "🚀 Running model comparison..."
+echo "🚀 Running cloud model comparison..."
 echo ""
 eval $CMD

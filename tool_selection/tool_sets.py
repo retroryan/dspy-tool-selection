@@ -280,7 +280,7 @@ class EcommerceToolSet(ToolSet):
             ),
             ToolSetTestCase(
                 request="Return item ITEM456 from order ORD123 because it's defective",
-                expected_tools=["return_item"],
+                expected_tools=["get_order", "return_item"],
                 description="Return defective item",
                 tool_set="ecommerce",
                 scenario="customer_support"

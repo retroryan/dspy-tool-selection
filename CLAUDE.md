@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT: Claude must always follow these goals and principles when working on this codebase.**
 
-1. **Maximum Simplicity**: Create the most basic possible synchronous example of using DSPy with Ollama
-2. **Tool Selection Focus**: Demonstrate how to select and call tools based on user intent
+1. **Maximum Simplicity**: Create the most basic possible synchronous example of using DSPy with agentic loops
+2. **Agentic Loop Focus**: Demonstrate how agents can reason, select tools, and iterate to complete tasks
 3. **Plain Pydantic I/O**: Use simple Pydantic models for structured input and output
 4. **Follow Best Practices**: Adhere to DSPy's emphasis on synchronous-only development
 5. **No Unnecessary Complexity**: Avoid async patterns, complex abstractions, or heavy frameworks
@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Claude must adhere to these principles:
 
 - **Synchronous-Only**: All code is synchronous for clarity and simplicity
-- **Always use `dspy.ChainOfThought`**: For improved reasoning in tool selection
+- **Always use `dspy.ChainOfThought`**: For improved reasoning in the agentic loop
 - **Type Safety**: Pydantic models provide clear data structures
 - **Minimal Dependencies**: Just DSPy, Pydantic, and python-dotenv
 - **Easy to Understand**: The entire implementation can be grasped in minutes
@@ -29,7 +29,7 @@ Claude must adhere to these principles:
 
 ## Project Overview
 
-This is a DSPy demo project that demonstrates multi-tool selection and execution using Language Models (LLMs) with Ollama. The project showcases type-safe multi-tool selection using Pydantic models, dynamic signature generation, and DSPy's Chain-of-Thought reasoning.
+This is a DSPy demo project that demonstrates an agentic loop architecture for multi-tool selection and execution. The project showcases how AI agents can reason about tasks, select appropriate tools, execute them, and iterate based on results - all using DSPy's Chain-of-Thought reasoning with type-safe Pydantic models.
 
 ## Key Commands
 
@@ -39,100 +39,138 @@ This is a DSPy demo project that demonstrates multi-tool selection and execution
 # Install dependencies (using Poetry)
 poetry install
 
-# Run the multi-tool demo
-poetry run python -m tool_selection.multi_demo
+# Run the agentic loop demo
+poetry run python -m agentic_loop.agent_loop_demo
 
-# Run model comparison
-./run_model_comparison.sh --models "gemma3:27b,llama3.1:8b"
+# Run with specific tool set
+poetry run python -m agentic_loop.agent_loop_demo treasure_hunt
 
-# Run with debug output to see DSPy prompts and LLM responses
-./run_demo.sh --debug
-# or set DSPY_DEBUG=true in .env
+# Run tests
+poetry run pytest
 
-# Quick start (checks dependencies and runs demo)
-./run_demo.sh
+# Run specific test phases
+poetry run pytest tests/test_phase3_manual_agent_loop.py
+poetry run pytest tests/test_phase4_activity_manager.py
+
+# Run integration tests
+poetry run pytest integration_tests/
 ```
 
 ### Testing & Development
 
 ```bash
-# Run a single example
-poetry run python -m tool_selection.multi_demo
-
-# Enable debug mode to inspect DSPy prompts
+# Run with debug output to see DSPy prompts and LLM responses
 export DSPY_DEBUG=true
-poetry run python -m tool_selection.multi_demo
+poetry run python -m agentic_loop.agent_loop_demo
+
+# Run a simple workflow test
+poetry run python -m integration_tests.test_simple_workflow
 ```
 
 ## Architecture Overview
 
 ### Core Components
 
-1. **tool_selection/multi_demo.py**: Main entry point that demonstrates multi-tool selection with example user requests.
+1. **agentic_loop/agent_loop_demo.py**: Main demo script that showcases the agentic loop with different tool sets.
 
-2. **tool_selection/multi_tool_selector.py**: Contains the DSPy module for multi-tool selection using type-safe Pydantic models. Key concepts:
-   - Dynamic signature generation with Literal types for compile-time safety
-   - `MultiToolSelector` module using `dspy.ChainOfThought` for reasoning
-   - Support for selecting multiple tools in a single request
+2. **agentic_loop/agent_reasoner.py**: Core DSPy module that performs reasoning about tool selection and task completion:
+   - Uses `dspy.ChainOfThought` for step-by-step reasoning
+   - Decides which tools to use and whether to continue iterating
+   - Returns structured `ReasoningOutput` with tool calls and decisions
 
-3. **tool_selection/tool_registry.py**: Multi-tool registry for managing and executing tools
-   - `MultiToolRegistry` pattern for clean tool execution
-   - Type-safe tool registration and execution
+3. **agentic_loop/manual_agent_loop.py**: Orchestrates the agentic loop:
+   - Stateless operation - receives full context each iteration
+   - Converts reasoning output to action decisions
+   - Manages conversation state and history
 
-4. **tool_selection/models.py**: Shared data models
-   - `MultiToolName` enum for type-safe tool identifiers
-   - Pydantic models for tool definitions and decisions
+4. **agentic_loop/activity_manager.py**: External control layer for the loop:
+   - Manages iterations and timeouts
+   - Executes tools based on agent decisions
+   - Tracks execution metrics and results
+   - Returns complete `ActivityResult` with all execution details
 
-5. **shared_utils/ollama_utils.py**: Configuration utilities for setting up the Ollama LLM backend
+5. **shared/models.py**: Core data models for the agentic loop:
+   - `ActionDecision`: What action to take next
+   - `ConversationState`: Complete state of the conversation
+   - `ToolCall` and `ToolExecutionResult`: Tool execution structures
+   - `ActivityResult`: Final result of an activity
 
-6. **tool_selection/test_cases.py**: Test case definitions for multi-tool selection scenarios
+6. **shared/registry.py**: Tool registry adapted for agentic loop:
+   - Returns `ToolExecutionResult` objects
+   - Handles tool execution with error handling
+   - Type-safe tool registration
 
-7. **tools/**: Directory containing tool implementations
-   - `give_hint.py`: Provides progressive hints about a treasure location
-   - `guess_location.py`: Validates location guesses
-
-8. **shared_utils/**: Shared utilities across the project
-   - `ollama_utils.py`: Ollama configuration and setup
-   - `metrics.py`: Performance metrics calculation
-   - `models.py`: Test result and comparison models
-   - `console.py`: Console output formatting
+7. **shared/tool_set_registry.py**: Manages collections of related tools:
+   - Allows loading specific tool sets (treasure_hunt, productivity, ecommerce)
+   - Provides explicit control over available tools
 
 ### Key Design Patterns
 
-1. **Type Safety**: Uses Python enums and Literal types to ensure tool names are type-safe and prevent runtime errors from typos
+1. **Agentic Loop Architecture**: 
+   - Agent reasons about the task and available tools
+   - Executes selected tools
+   - Evaluates results and decides whether to continue
+   - Iterates until task completion or max iterations
 
-2. **Dynamic Signatures**: Creates DSPy signatures dynamically based on available tools, allowing the system to adapt as new tools are added
+2. **Stateless Operation**: Each iteration receives full context, making the system more robust and easier to debug
 
-3. **Tool Registry**: Instead of if/elif chains, uses a registry pattern for cleaner tool execution and better maintainability
+3. **External Control**: ActivityManager provides full control over execution flow, allowing for timeouts, error handling, and metrics
 
-4. **Synchronous-Only**: Following DSPy best practices, all code is synchronous for clarity and simplicity
+4. **Type Safety**: Pydantic models ensure all data structures are validated and type-safe
+
+5. **Multi-Tool Support**: Agents can select and execute multiple tools in a single iteration
 
 ### DSPy Concepts Used
 
-- **Signatures**: Define input/output contracts for the LLM
-- **Chain of Thought**: Improves reasoning by having the LLM think step-by-step
-- **Pydantic Integration**: Ensures type safety and automatic validation
-- **Dynamic Literal Types**: Constrains tool selection to valid options
+- **Chain of Thought**: Core reasoning mechanism for the agent
+- **Signatures**: Define input/output contracts for reasoning
+- **Pydantic Integration**: Type-safe structured outputs
+- **Synchronous Execution**: Following DSPy best practices
 
 ## Development Guidelines
 
-When adding new tools:
+When working with the agentic loop:
 
-1. Add the tool name to the `MultiToolName` enum in `tool_selection/models.py`
-2. Create the tool implementation in `tools/` directory
-3. Register the tool in `tool_selection/multi_demo.py` using the registry pattern
-4. Update the tool definitions in the registry
+1. **Adding New Tools**:
+   - Create tool class inheriting from `BaseTool`
+   - Add to appropriate tool set in `tool_selection/tool_sets.py`
+   - Tools are automatically available when their tool set is loaded
+
+2. **Creating Tool Sets**:
+   - Subclass `ToolSet` in `tool_selection/tool_sets.py`
+   - Define tool classes and test cases
+   - Register in `agent_loop_demo.py`
+
+3. **Modifying the Loop**:
+   - Keep `ManualAgentLoop` stateless
+   - Put execution logic in `ActivityManager`
+   - Use `AgentReasoner` for all LLM reasoning
+
+4. **Testing**:
+   - Unit tests for individual components
+   - Integration tests for full workflows
+   - Always test with multiple tool sets
 
 ## Configuration
 
 The project uses environment variables configured in `.env`:
+- `DSPY_PROVIDER`: LLM provider (ollama, claude, openai)
 - `OLLAMA_MODEL`: The Ollama model to use (default: gemma3:27b)
 - `OLLAMA_BASE_URL`: Ollama server URL (default: http://localhost:11434)
+- `LLM_TEMPERATURE`: Generation temperature (default: 0.7)
+- `LLM_MAX_TOKENS`: Maximum tokens (default: 1024)
 - `DSPY_DEBUG`: Enable debug output to see prompts and LLM responses
 
 ## Prerequisites
 
 - Python 3.10+
 - Poetry for dependency management
-- Ollama installed and running locally
-- Gemma3 model pulled: `ollama pull gemma3:27b`
+- Ollama installed and running locally (or API keys for cloud providers)
+- Appropriate models pulled (e.g., `ollama pull gemma3:27b`)
+
+## Test Results
+
+Test results are saved to `test_results/` directory with format:
+`agent_loop_{tool_set}_{timestamp}.json`
+
+This directory is gitignored to keep the repository clean.

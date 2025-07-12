@@ -1,317 +1,284 @@
-# DSPy Multi-Tool Selection Demo
+# DSPy Agentic Loop Demo
 
-A comprehensive example demonstrating how to use DSPy with multiple LLM providers (Ollama, Claude, OpenAI, Gemini) for multi-tool selection and execution, featuring type-safe tool registry and dynamic signature generation.
-
-## Primary Goals & Objectives
-
-1. **Maximum Simplicity**: Create the most basic possible synchronous example of using DSPy with multiple LLM providers
-2. **Tool Selection Focus**: Demonstrate how to select and call tools based on user intent
-3. **Plain Pydantic I/O**: Use simple Pydantic models for structured input and output
-4. **Follow Best Practices**: Adhere to DSPy's emphasis on synchronous-only development
-5. **No Unnecessary Complexity**: Avoid async patterns, complex abstractions, or heavy frameworks
-
-## Key Principles
-
-- **Synchronous-Only**: All code is synchronous for clarity and simplicity
-- **Always use `dspy.ChainOfThought`**: For improved reasoning in tool selection
-- **Type Safety**: Pydantic models provide clear data structures
-- **Minimal Dependencies**: Just DSPy, Pydantic, and python-dotenv
-- **Easy to Understand**: The entire implementation can be grasped in minutes
-
-## Prerequisites
-
-- Python 3.10+
-- [Poetry](https://python-poetry.org/) for dependency management
-- [Ollama](https://ollama.ai/) installed and running locally
-- Gemma2 model pulled in Ollama: `ollama pull gemma3:27b`
+A comprehensive example demonstrating how to use DSPy with an agentic loop architecture for multi-tool selection and execution across iterations. Features type-safe tool registry, activity management, and support for multiple LLM providers (Ollama, Claude, OpenAI, Gemini).
 
 ## Quick Start
 
-### 1. Install Poetry (if not already installed)
+### Prerequisites
 
-Poetry is a modern dependency management tool for Python. Install it using:
+- Python 3.10+
+- [Poetry](https://python-poetry.org/) for dependency management
+- [Ollama](https://ollama.ai/) installed and running locally (or API keys for cloud providers)
 
-```bash
-# On macOS/Linux/WSL
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Or using pip
-pip install poetry
-```
-
-### 2. Clone and set up the project
+### Setup
 
 ```bash
-# Clone the repository (or navigate to the demo directory)
-cd demo-dspy
+# 1. Clone the repository
+git clone <repository-url>
+cd dspy-tool-selection
 
-# Install Python dependencies using Poetry
+# 2. Install dependencies
 poetry install
 
-# Copy the example environment file
+# 3. Copy environment file
 cp .env.example .env
-```
 
-### 3. Start Ollama and pull the model
-
-```bash
-# In a separate terminal, start Ollama
-ollama serve
-
-# Pull the Gemma3 model (27B parameters)
+# 4. (Optional) For Ollama: pull the model
 ollama pull gemma3:27b
 ```
 
-### 4. Run the demos
-
-#### Multi-Tool Selection Demo
+### Run the Demo
 
 ```bash
-# Run with default Chain of Thought mode
+# Run with default productivity tools
 ./run_demo.sh
 
-# Run with debug output (shows DSPy prompts and LLM responses)
+# Run with specific tool set
+./run_demo.sh treasure_hunt
+
+# Run with debug mode to see DSPy prompts
 ./run_demo.sh --debug
 
-# Run with Predict mode (direct prediction, no reasoning steps)
-./run_demo.sh --predict
-
-# Run with Predict mode and debug output
-./run_demo.sh --predict --debug
-
-# Show help and all available options
-./run_demo.sh --help
+# Available tool sets: treasure_hunt, productivity, ecommerce
 ```
 
-#### Model Comparison
-
-```bash
-# Compare specific models
-./run_model_comparison.sh --models "gemma3:27b,llama3.1:8b"
-
-# Convert CSV results to markdown summary
-./run_model_comparison.sh --create-md --csv model_results.csv -o summary.md
-
-# Show help and all available options
-./run_model_comparison.sh --help
-```
-
-### 5. Run tests (optional)
-
-The project includes a comprehensive test suite to verify functionality:
+### Run Tests
 
 ```bash
 # Run all tests
-./tests/run_tests.sh
+poetry run pytest
 
-# Or run tests directly with pytest
-poetry run pytest tests/
-
-# Run specific test categories
-poetry run pytest tests/test_multi_tool_selector.py   # Multi-tool tests
-poetry run pytest tests/test_integration.py        # End-to-end tests
-
-# Run tests with verbose output
-poetry run pytest -v tests/
+# Run specific test suites
+poetry run pytest tests/test_phase3_manual_agent_loop.py
+poetry run pytest tests/test_phase4_activity_manager.py
+poetry run pytest integration_tests/
 ```
 
-**Note**: Tests require a running Ollama instance with an appropriate model.
+## What is the Agentic Loop?
 
-## DSPy Prediction Modes
+The agentic loop is an architecture that allows an AI agent to:
+1. **Reason** about user requests and decide which tools to use
+2. **Execute** multiple tools in a single iteration or across iterations
+3. **Evaluate** results and decide whether to continue or provide a final response
+4. **Iterate** up to a maximum number of times to complete complex tasks
 
-This demo supports two DSPy prediction strategies:
+Key components:
+- **ManualAgentLoop**: Handles reasoning and decision-making using DSPy
+- **ActivityManager**: Manages execution flow, iterations, and tool calls
+- **ToolRegistry**: Type-safe registry for tool registration and execution
 
-### Chain of Thought Mode (Default)
-- Uses `dspy.ChainOfThought` for step-by-step reasoning
-- The LLM explains its thinking process before selecting a tool
-- Generally more accurate for complex decisions
-- Provides detailed reasoning in the output
+## Detailed Usage
 
-### Predict Mode
-- Uses `dspy.Predict` for direct prediction
-- Faster and more concise responses
-- No intermediate reasoning steps
-- May be less accurate for complex tool selection
+### Running with Different Tool Sets
 
-You can switch between modes using:
-- Command line: `./run_demo.sh --predict`
-- Environment variable: `DSPY_USE_PREDICT=true`
-- Programmatically: `MultiToolSelector(use_predict=True)`
+The demo supports multiple tool sets, each containing related tools:
 
-## Using Different LLMs
+```bash
+# Treasure Hunt Tools (give_hint, guess_location)
+./run_demo.sh treasure_hunt
 
-This demo uses DSPy's unified `dspy.LM` class, which is built on [LiteLLM](https://docs.litellm.ai/), providing support for 100+ LLM providers including local models (Ollama) and cloud providers (Claude, OpenAI, Gemini).
+# Productivity Tools (set_reminder)
+./run_demo.sh productivity
 
-### Quick Provider Switch
+# E-commerce Tools (search_products, add_to_cart, etc.)
+./run_demo.sh ecommerce
 
-The demo supports multiple LLM providers through simple `.env` configuration:
+# With debug output
+./run_demo.sh treasure_hunt --debug
+```
+
+### Output and Results
+
+The demo provides:
+- Real-time execution progress with reasoning traces
+- Performance metrics (precision, recall, F1 score)
+- Visual performance bars
+- JSON results saved to `test_results/agent_loop_{tool_set}_{timestamp}.json`
+
+### Using Different LLM Providers
+
+The agentic loop supports multiple LLM providers through DSPy's unified interface:
 
 #### Ollama (Local - Default)
 ```bash
-# Current .env configuration works as-is
-./run_demo.sh
-
-# Or use the dedicated Ollama config:
-cp ollama.env .env
+# Already configured in .env.example
 ./run_demo.sh
 ```
 
 #### Claude (Anthropic)
 ```bash
-# Use Claude configuration
+# Copy Claude configuration
 cp claude.env .env
-
-# Edit .env and add your API key:
-# ANTHROPIC_API_KEY=sk-ant-api03-...
-
-# Run with Claude
+# Add your API key to .env: ANTHROPIC_API_KEY=sk-ant-api03-...
 ./run_demo.sh
 ```
 
 #### OpenAI
 ```bash
-# Use OpenAI configuration
+# Copy OpenAI configuration
 cp openai.env .env
-
-# Edit .env and add your API key:
-# OPENAI_API_KEY=sk-...
-
-# Run with OpenAI
+# Add your API key to .env: OPENAI_API_KEY=sk-...
 ./run_demo.sh
 ```
 
-### Environment Variables
+### Model Comparison
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DSPY_PROVIDER` | LLM provider (`ollama`, `claude`, `openai`, `gemini`) | `ollama` |
-| `LLM_TEMPERATURE` | Generation temperature | `0.7` |
-| `LLM_MAX_TOKENS` | Maximum tokens to generate | `1024` |
-| `DEMO_VERBOSE` | Show connection status | `true` |
-| `DSPY_DEBUG` | Enable DSPy debug logging | `false` |
-
-### Provider-Specific Configuration
-
-Each provider supports specific models and settings:
-
-- **Ollama**: `OLLAMA_MODEL`, `OLLAMA_BASE_URL`
-- **Claude**: `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`
-- **OpenAI**: `OPENAI_API_KEY`, `OPENAI_MODEL`
-- **Gemini**: `GOOGLE_API_KEY`, `GEMINI_MODEL`
-
-### Why Use Different Models?
-
-- **Ollama**: Free, private, runs locally, good for development
-- **Claude**: Excellent reasoning, great for complex tool selection
-- **OpenAI GPT-4**: Strong performance, widely supported
-- **Gemini**: Cost-effective, good multimodal capabilities
-
-The same DSPy code works across all providers - just change the configuration!
-
-### Provider-Specific Configuration Files
-
-For easy setup, we provide pre-configured environment files for each provider:
-
-- **`ollama.env`** - Local Ollama models (gemma3:27b, llama3.2, deepseek-r1, etc.)
-- **`claude.env`** - Claude models (3.5 Sonnet, 3.7 Sonnet, Sonnet 4)
-- **`openai.env`** - OpenAI models (GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, o1-preview, etc.)
-
-Simply copy the desired configuration to `.env` and add your API keys:
+Compare different models on the same tool set:
 
 ```bash
-# Quick setup examples:
-cp ollama.env .env    # Use local Ollama
-cp claude.env .env    # Use Claude (add ANTHROPIC_API_KEY)
-cp openai.env .env    # Use OpenAI (add OPENAI_API_KEY)
+# Compare default models (gemma3:27b, llama3.1:8b) on productivity tools
+./run_model_comparison.sh
+
+# Compare specific models on treasure hunt
+./run_model_comparison.sh treasure_hunt --models "gemma3:27b,llama3.1:8b,llama3.2:3b"
+
+# Test single model on ecommerce
+./run_model_comparison.sh ecommerce --models "gemma3:27b"
 ```
 
-Each file includes:
-- Multiple model options (uncomment to use)
-- Recommended settings for each provider
-- Helpful comments explaining each model's strengths
+Results are saved to `test_results/model_comparison_{tool_set}_{timestamp}.json`
 
-## Manual Setup
+### Advanced Options
 
-If you prefer to set up manually:
+#### Configure Iterations and Timeouts
 
-1. **Install dependencies:**
-   ```bash
-   poetry install
-   ```
+Edit the ActivityManager initialization in `agent_loop_demo.py`:
 
-2. **Configure Ollama (optional):**
-   Edit `.env` to change the model or settings:
-   ```env
-   OLLAMA_MODEL=gemma3:27b
-   OLLAMA_BASE_URL=http://localhost:11434
-   ```
+```python
+activity_manager = ActivityManager(
+    agent_loop=agent_loop,
+    tool_registry=tool_registry,
+    max_iterations=5,      # Increase max iterations
+    timeout_seconds=60.0   # Increase timeout
+)
+```
 
-3. **Run the demo:**
-   ```bash
-   poetry run python -m tool_selection.multi_demo
-   ```
+#### Custom Tool Sets
 
-## What This Demo Does
+Create a new tool set by:
+1. Implementing tools that inherit from `BaseTool`
+2. Creating a `ToolSet` subclass
+3. Registering it in `agent_loop_demo.py`
 
-The demo showcases:
-- **Tool Selection**: DSPy analyzes user requests and selects appropriate tools
-- **Argument Extraction**: Automatically extracts required arguments from natural language
-- **Chain of Thought**: Uses reasoning to explain tool selection decisions
-
-### Example Tools
-
-1. **give_hint**: Provides progressive hints about a treasure location
-2. **guess_location**: Validates location guesses
-
-### Example Interactions
-
-- "I need a hint about where the treasure is"
-- "I think the treasure is at 300 Lenora in Seattle, WA"
+Example:
+```python
+class MyCustomToolSet(ToolSet):
+    NAME = "custom"
+    
+    def __init__(self):
+        super().__init__(
+            config=ToolSetConfig(
+                name=self.NAME,
+                description="My custom tools",
+                tool_classes=[MyTool1, MyTool2]
+            )
+        )
+```
 
 ## Project Structure
 
 ```
-demo-dspy/
-├── .env                    # Current LLM configuration
-├── ollama.env              # Ollama (local) configuration template
-├── claude.env              # Claude configuration template
-├── openai.env              # OpenAI configuration template
-├── cloud.env.example      # Generic cloud provider template
-├── tools/                  # Simple tool implementations
-│   ├── give_hint.py
-│   └── guess_location.py
-├── shared_utils/           # Shared utilities
-│   ├── llm_factory.py      # Multi-provider LLM factory
-│   ├── metrics.py          # Performance metrics
-│   ├── models.py           # Test models
-│   └── console.py          # Console formatting
-├── tool_selection/         # Multi-tool selection modules
-│   ├── multi_demo.py           # Main demo script
-│   ├── multi_tool_selector.py  # Multi-tool selection logic
-│   ├── tool_registry.py        # Multi-tool registry
-│   ├── models.py               # Shared data models
-│   ├── test_cases.py           # Test case definitions
-│   ├── run_model_comparison.py # Model comparison script
-│   └── csv_to_md.py            # CSV to markdown converter
-├── setup.sh               # Setup and dependency installation
-└── run_demo.sh            # Demo runner with mode selection
+dspy-tool-selection/
+├── agentic_loop/           # Agentic loop implementation
+│   ├── agent_loop_demo.py  # Main demo script
+│   ├── agent_reasoner.py   # DSPy reasoning module
+│   ├── manual_agent_loop.py # Loop orchestration
+│   └── activity_manager.py  # Execution management
+├── shared/                 # Shared components
+│   ├── models.py           # Core data models
+│   ├── registry.py         # Tool registry
+│   └── tool_set_registry.py # Tool set management
+├── tool_selection/         # Tool sets and definitions
+│   ├── tool_sets.py        # Tool set implementations
+│   └── base_tool.py        # Base tool class
+├── tools/                  # Individual tool implementations
+│   ├── treasure_hunt/      # Treasure hunt tools
+│   ├── productivity/       # Productivity tools
+│   └── ecommerce/          # E-commerce tools
+├── tests/                  # Unit tests
+├── integration_tests/      # Integration tests
+└── test_results/           # Test execution results (gitignored)
 ```
 
 ## Key Concepts
 
-- **Synchronous Only**: Following DSPy best practices for simplicity
-- **Pydantic Models**: Type-safe data structures for tools and decisions
-- **Chain of Thought**: Always uses `dspy.ChainOfThought` for better reasoning
-- **Minimal Dependencies**: Just DSPy, Pydantic, and python-dotenv
+### Agentic Loop Architecture
+
+1. **Stateless Operation**: Each iteration receives full context
+2. **External Control**: ActivityManager controls execution flow
+3. **Multi-Tool Support**: Can select and execute multiple tools per iteration
+4. **Error Recovery**: Built-in error handling and recovery strategies
+5. **Iteration Management**: Configurable max iterations with early termination
+
+### Tool Development
+
+Tools must:
+- Inherit from `BaseTool`
+- Define `NAME` and `MODULE` class attributes
+- Implement `execute()` method
+- Define `args_model` for input validation
+- Return structured results
+
+Example:
+```python
+class MyTool(BaseTool):
+    NAME = "my_tool"
+    MODULE = "custom"
+    
+    class ArgsModel(BaseModel):
+        query: str
+    
+    def execute(self, query: str) -> Dict[str, Any]:
+        return {"result": f"Processed: {query}"}
+```
+
+## Testing
+
+### Unit Tests
+```bash
+# Test individual components
+poetry run pytest tests/test_phase3_manual_agent_loop.py -v
+poetry run pytest tests/test_phase4_activity_manager.py -v
+```
+
+### Integration Tests
+```bash
+# Test full workflows
+poetry run pytest integration_tests/test_simple_workflow.py -v
+poetry run pytest integration_tests/test_full_workflow.py -v
+```
+
+### Running Specific Tests
+```bash
+# Run tests matching a pattern
+poetry run pytest -k "test_multi_tool"
+
+# Run with coverage
+poetry run pytest --cov=agentic_loop --cov=shared
+```
 
 ## Troubleshooting
 
-- **Ollama not running**: Start Ollama with `ollama serve`
-- **Model not found**: Pull the model with `ollama pull gemma2:27b`
-- **Poetry not found**: Install Poetry from https://python-poetry.org/
+- **Ollama not running**: Start with `ollama serve`
+- **Model not found**: Pull with `ollama pull gemma3:27b`
+- **Import errors**: Ensure you're using `poetry run` or activated the virtual environment
+- **API key errors**: Check your `.env` file has the correct API keys
+- **Timeout errors**: Increase `timeout_seconds` in ActivityManager
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DSPY_PROVIDER` | LLM provider (`ollama`, `claude`, `openai`) | `ollama` |
+| `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` |
+| `LLM_TEMPERATURE` | Generation temperature | `0.7` |
+| `LLM_MAX_TOKENS` | Maximum tokens | `1024` |
+| `DSPY_DEBUG` | Show DSPy prompts/responses | `false` |
 
 ## Next Steps
 
-- Add more tools to the `tools/` directory
-- Experiment with different Ollama models
-- Extend the tool selection logic for more complex scenarios
+- Explore different tool sets and their capabilities
+- Create custom tools for your use case
+- Experiment with different LLM providers
+- Adjust iteration limits and reasoning strategies
+- Build complex multi-step workflows
