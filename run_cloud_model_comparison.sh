@@ -120,3 +120,14 @@ echo ""
 echo "🚀 Running cloud model comparison..."
 echo ""
 eval $CMD
+
+# Show where results are saved
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "📁 Results Location:"
+    echo "   Check the test_results/ directory for detailed JSON output"
+    echo "   Latest results: test_results/cloud_model_comparison_${TOOL_SET:-productivity}_*.json"
+    echo ""
+    echo "   View results with:"
+    echo "   cat test_results/cloud_model_comparison_*.json | tail -1 | jq ."
+fi

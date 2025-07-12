@@ -190,9 +190,19 @@ def main():
     models_to_test = []
     
     if args.models:
-        # Parse specific models
-        for model_spec in args.models.split(','):
-            model_spec = model_spec.strip()
+        # Parse specific models from command line
+        model_specs = [m.strip() for m in args.models.split(',')]
+    elif os.getenv('CLOUD_TEST_MODELS'):
+        # Parse models from environment variable
+        model_specs = [m.strip() for m in os.getenv('CLOUD_TEST_MODELS').split(',')]
+        print(f"📋 Using models from CLOUD_TEST_MODELS environment variable")
+    else:
+        # Use default models for each provider
+        model_specs = None
+    
+    if model_specs:
+        # Process specified models
+        for model_spec in model_specs:
             # Try to match against known models
             found = False
             for provider, model_list in CLOUD_MODELS.items():

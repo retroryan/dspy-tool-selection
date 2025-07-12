@@ -123,7 +123,9 @@ cp openai.env .env
 
 ### Model Comparison
 
-Compare different models on the same tool set:
+#### Local Models (Ollama)
+
+Compare different Ollama models on the same tool set:
 
 ```bash
 # Compare default models (gemma3:27b, llama3.1:8b) on productivity tools
@@ -137,6 +139,64 @@ Compare different models on the same tool set:
 ```
 
 Results are saved to `test_results/model_comparison_{tool_set}_{timestamp}.json`
+
+#### Cloud Models (Claude & OpenAI)
+
+Compare cloud models using the cloud model comparison script:
+
+```bash
+# 1. Copy and configure cloud_test.env
+cp cloud_test.env.example cloud_test.env
+# Edit cloud_test.env to add your API keys and configure models to test
+
+# 2. Run cloud model comparison using models from cloud_test.env
+./run_cloud_model_comparison.sh ecommerce
+
+# 3. Override models via command line
+./run_cloud_model_comparison.sh treasure_hunt --models "claude-3-5-sonnet-20241022,gpt-4"
+
+# 4. Test specific providers only
+./run_cloud_model_comparison.sh productivity --providers "claude"
+
+# 5. Combine provider and model selection
+./run_cloud_model_comparison.sh ecommerce --providers "openai" --models "gpt-3.5-turbo,gpt-4"
+```
+
+##### Configuring cloud_test.env
+
+The `cloud_test.env` file supports the following configuration:
+
+```bash
+# API Keys (required)
+ANTHROPIC_API_KEY=your-claude-api-key
+OPENAI_API_KEY=your-openai-api-key
+
+# Models to test (optional - will use these if --models not specified)
+# Available Claude models: claude-3-5-sonnet-20241022, claude-3-haiku-20240307, claude-3-opus-20240229
+# Available OpenAI models: gpt-4, gpt-4-turbo-preview, gpt-3.5-turbo
+CLOUD_TEST_MODELS=claude-3-5-sonnet-20241022,gpt-3.5-turbo,gpt-4,claude-3-haiku-20240307
+
+# LLM settings
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=1024
+```
+
+Results are saved to `test_results/cloud_model_comparison_{tool_set}_{timestamp}.json`
+
+##### Viewing Test Results
+
+All test results are saved in the `test_results/` directory (gitignored). You can view them with:
+
+```bash
+# List all test results
+ls -la test_results/
+
+# View latest cloud model comparison
+cat test_results/cloud_model_comparison_*.json | tail -1 | jq .
+
+# View specific result file
+cat test_results/cloud_model_comparison_ecommerce_20250711_191000.json | jq .
+```
 
 ### Advanced Options
 

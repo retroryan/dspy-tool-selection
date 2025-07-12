@@ -120,16 +120,20 @@ def run_agent_loop_demo(tool_set_name: str = "productivity") -> Dict[str, Any]:
         return {"error": str(e)}
     
     # Create agent loop and activity manager
+    # Use environment variables for configuration with sensible defaults
+    max_iterations = int(os.getenv('AGENT_MAX_ITERATIONS', '5'))
+    timeout_seconds = float(os.getenv('AGENT_TIMEOUT_SECONDS', '60.0'))
+    
     agent_loop = ManualAgentLoop(
         tool_names=tool_names,
-        max_iterations=3  # Allow multiple iterations for complex tasks
+        max_iterations=max_iterations  # Allow multiple iterations for complex tasks
     )
     
     activity_manager = ActivityManager(
         agent_loop=agent_loop,
         tool_registry=tool_registry,
-        max_iterations=3,
-        timeout_seconds=30.0
+        max_iterations=max_iterations,
+        timeout_seconds=timeout_seconds
     )
     
     # Get test cases for the tool set

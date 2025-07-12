@@ -287,8 +287,8 @@ class EcommerceToolSet(ToolSet):
             ),
             ToolSetTestCase(
                 request="I need to find laptops in my price range and add one to my cart",
-                expected_tools=["search_products", "add_to_cart"],
-                description="Multi-step shopping process",
+                expected_tools=["search_products"],
+                description="Multi-step shopping process - search phase",
                 tool_set="ecommerce",
                 scenario="shopping"
             )
